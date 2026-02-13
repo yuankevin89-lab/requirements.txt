@@ -49,7 +49,7 @@ with tab1:
                 car_number = st.text_input("車號 (選填)", placeholder="可留空")
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
-            submit = st.form_submit_button("確認提交並同步雲端")
+            submit = st.form_submit_button("確認送出")
 
             if submit:
                 if user_name and station_name and description:
