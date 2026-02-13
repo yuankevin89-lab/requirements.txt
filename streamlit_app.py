@@ -40,7 +40,7 @@ if conn_success:
         # 第一列：場站名稱 與 填單人姓名 (皆為必填)
         col1, col2 = st.columns(2)
         with col1:
-            station_name = st.text_input("場站名稱 (必填)", placeholder="例如：台北站")
+            station_name = st.text_input("場站名稱 (必填)", placeholder="例如：華視光復場")
             caller_name = st.text_input("來電人 (選填)", placeholder="可留空")
         with col2:
             user_name = st.text_input("填單人姓名 (必填)", placeholder="請輸入姓名")
