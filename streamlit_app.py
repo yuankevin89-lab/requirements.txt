@@ -20,7 +20,7 @@ try:
     client = init_connection()
     # 【注意】請確保下方的名稱與你的 Google Sheets 檔名完全一致
     # 例如：client.open("客服登記表").sheet1
-    sheet = client.open("你的試算表名稱").sheet1
+    sheet = client.open("客服作業表").sheet1
     conn_success = True
 except Exception as e:
     st.error(f"連線失敗，請檢查 Secrets 格式或 Google Sheets 權限。")
