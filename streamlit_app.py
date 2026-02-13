@@ -57,7 +57,7 @@ with tab1:
             with btn_col2:
                 st.link_button("多元支付", "http://219.85.163.90:5010/")
             with btn_col3:
-                st.link_button("超商", "https://mitwit-line-web-server.herokuapp.com/service/temporary/parking/R1D2ED9B/search/")
+                st.link_button("超商", "http://219.85.163.90:5010/")
             with btn_col4:
                 st.link_button("簡訊", "https://umc.fetnet.net/#/menu/login")
 
