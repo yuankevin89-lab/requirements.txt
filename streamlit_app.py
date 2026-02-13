@@ -57,49 +57,35 @@ with tab1:
                         row_to_add = [now, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                         sheet.append_row(row_to_add)
                         st.success("✅ 資料已成功上傳！")
-                        st.rerun() # 提交後重新整理頁面以更新下方列表
+                        st.rerun()
                     except Exception as upload_error:
                         st.error(f"上傳錯誤：{upload_error}")
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
 
-        # --- 新增：自動顯示最近三筆紀錄 ---
+        # --- 優化後的最近三筆紀錄 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
-            # 取得所有資料
             all_records = sheet.get_all_records()
             if all_records:
-                # 轉成 DataFrame 並取最後三筆，然後反轉順序（最新在上面）
+                # 轉成 DataFrame 並取最後三筆，倒序排列
                 recent_df = pd.DataFrame(all_records).tail(3).iloc[::-1]
-                st.table(recent_df) # 使用表格形式美化顯示
-            else:
-                st.caption("目前尚無歷史紀錄")
-        except Exception as e:
-            st.caption("暫時無法讀取最近紀錄")
-
-# --- Tab 2: 數據統計 ---
-with tab2:
-    st.title("📊 當日報表摘要")
-    if conn_success:
-        if st.button("更新統計數據"):
-            all_data = sheet.get_all_records()
-            if all_data:
-                df = pd.DataFrame(all_data)
-                today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-                df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
                 
-                if not df_today.empty:
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("今日總案件數", len(df_today))
-                    c2.metric("最常發生場站", df_today.iloc[:, 1].mode()[0] if not df_today.iloc[:, 1].mode().empty else "無")
-                    c3.metric("主要故障類型", df_today.iloc[:, 3].mode()[0] if not df_today.iloc[:, 3].mode().empty else "無")
-                    
-                    st.subheader("案件類別分布")
-                    chart_data = df_today.iloc[:, 3].value_counts()
-                    st.bar_chart(chart_data)
-                    
-                    st.subheader("今日詳細紀錄")
-                    st.dataframe(df_today, use_container_width=True)
-                else:
-                    st.info("今日尚無登記資料。")
+                # 使用 column_config 設定欄位寬度 (width 的數值代表權重/比例)
+                st.dataframe(
+                    recent_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "時間": st.column_config.TextColumn("時間", width="small"),
+                        "場站名稱": st.column_config.TextColumn("場站名稱", width="small"),
+                        "填單人姓名": st.column_config.TextColumn("填單人姓名", width="small"),
+                        "案件類別": st.column_config.TextColumn("案件類別", width="small"),
+                        "來電人": st.column_config.TextColumn("來電人", width="small"),
+                        "電話": st.column_config.TextColumn("電話", width="small"),
+                        "車號": st.column_config.TextColumn("車號", width="small"),
+                        "詳細描述": st.column_config.TextColumn("詳細描述", width="large"), # 加寬
+                    }
+                )
+            else
