@@ -18,7 +18,7 @@ def init_connection():
 try:
     client = init_connection()
     # 請確保下方的名稱與你的 Google Sheets 檔名完全一致
-    sheet = client.open("你的試算表名稱").sheet1
+    sheet = client.open("客服作業表").sheet1
     conn_success = True
 except Exception as e:
     st.error(f"連線 Google Sheets 失敗: {e}")
