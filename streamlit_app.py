@@ -49,12 +49,14 @@ with tab1:
                 car_number = st.text_input("車號 (選填)", placeholder="可留空")
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
-            submit = st.form_submit_button("確認提交並同步雲端")
+            
+            # 更新按鈕文字
+            submit = st.form_submit_button("確認送出")
 
             if submit:
                 if user_name and station_name and description:
                     try:
-                        # 依照截圖欄位順序寫入 (請確保與 Sheets 一致)
+                        # 依照基準順序寫入
                         row_to_add = [now, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                         sheet.append_row(row_to_add)
                         st.success("✅ 資料已成功上傳！")
@@ -64,7 +66,7 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
 
-        # --- 最近三筆紀錄：根據截圖標題進行寬度優化 ---
+        # --- 最近三筆紀錄：欄位寬度優化 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
@@ -72,7 +74,7 @@ with tab1:
             if all_records:
                 recent_df = pd.DataFrame(all_records).tail(3).iloc[::-1]
                 
-                # 這裡的 key 必須完全對應你 Google Sheets 的第一列標題
+                # 配置寬度：日期、時間、姓名、車號縮小(small)；內容加寬(large)
                 st.dataframe(
                     recent_df,
                     use_container_width=True,
@@ -82,7 +84,7 @@ with tab1:
                         "時間": st.column_config.TextColumn("時間", width="small"),
                         "姓名": st.column_config.TextColumn("姓名", width="small"),
                         "車號": st.column_config.TextColumn("車號", width="small"),
-                        "內容": st.column_config.TextColumn("內容", width="large"), # 加寬三倍效果
+                        "內容": st.column_config.TextColumn("內容", width="large"),
                         "場別": st.column_config.TextColumn("場別", width="medium"),
                         "電話": st.column_config.TextColumn("電話", width="medium"),
                         "記錄人": st.column_config.TextColumn("記錄人", width="medium"),
@@ -90,8 +92,8 @@ with tab1:
                 )
             else:
                 st.caption("目前尚無歷史紀錄")
-        except Exception as e:
-            st.caption("暫時無法讀取最近紀錄，請確認 Sheets 標題是否與程式碼對應。")
+        except Exception:
+            st.caption("暫時無法讀取最近紀錄")
 
 # --- Tab 2: 數據統計 ---
 with tab2:
@@ -106,13 +108,11 @@ with tab2:
                 if all_data:
                     df = pd.DataFrame(all_data)
                     today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-                    # 篩選日期
                     df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
                     
                     if not df_today.empty:
                         c1, c2, c3 = st.columns(3)
                         c1.metric("今日總案件數", len(df_today))
-                        # 注意：此處 index 需根據你的 Sheets 實際位置調整
                         st.bar_chart(df_today.iloc[:, 3].value_counts())
                         st.dataframe(df_today, use_container_width=True)
                     else:
