@@ -15,7 +15,7 @@ def connect_to_sheets():
         
         # 【重要】請確保這裡的名稱與你的 Google 試算表檔名完全一致
         # 如果你的試算表叫「客服資料」，請改成 client.open("客服資料")
-        sheet = client.open("你的試算表名稱").sheet1 
+        sheet = client.open("客服作業表").sheet1 
         return sheet
     except Exception as e:
         st.error(f"連線 Google Sheets 失敗: {e}")
