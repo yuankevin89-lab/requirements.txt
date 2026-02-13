@@ -4,7 +4,7 @@ import gspread
 import datetime
 
 # --- 1. 頁面基本設定 ---
-st.set_page_config(page_title="公司內部案件登記系統", page_icon="📝")
+st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝")
 
 # --- 2. Google Sheets 連線函式 ---
 def init_connection():
