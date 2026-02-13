@@ -26,7 +26,7 @@ except Exception as e:
     conn_success = False
 
 # --- 3. 程式主介面 ---
-st.title("📝 公司內部案件登記系統")
+st.title("📝 應安客服雲端登記系統")
 st.write("請填寫下方欄位，系統將自動記錄提交時間。")
 
 if conn_success:
