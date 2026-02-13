@@ -24,7 +24,7 @@ except Exception as e:
     conn_success = False
 
 # --- 3. 建立分頁 ---
-tab1, tab2 = st.tabs(["📝 案件登記", "📊 當日報表統計"])
+tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 # --- Tab 1: 案件登記 ---
 with tab1:
@@ -50,13 +50,14 @@ with tab1:
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
             
-            # --- 按鈕區塊：並排顯示 ---
-            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 4]) # 調整比例讓按鈕靠近
+            # --- 按鈕區塊：移除超商後的並排 ---
+            btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
             with btn_col1:
                 submit = st.form_submit_button("確認送出")
             with btn_col2:
-                # 新增多元支付按鈕，點擊會另開視窗開啟網址
                 st.link_button("多元支付", "http://219.85.163.90:5010/")
+            with btn_col3:
+                st.link_button("簡訊", "https://umc.fetnet.net/#/menu/login")
 
             if submit:
                 if user_name and station_name and description:
@@ -99,7 +100,7 @@ with tab1:
 
 # --- Tab 2: 數據統計 ---
 with tab2:
-    st.title("📊 當日報表摘要")
+    st.title("📊 數據統計摘要")
     PASSWORD = "kevin198"
     input_password = st.text_input("請輸入管理員密碼", type="password")
     
