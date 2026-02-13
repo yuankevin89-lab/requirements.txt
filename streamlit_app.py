@@ -63,7 +63,7 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
 
-        # --- 優化後的最近三筆紀錄 ---
+        # --- 最近三筆紀錄 (保持寬度優化) ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
@@ -87,34 +87,44 @@ with tab1:
                 )
             else:
                 st.caption("目前尚無歷史紀錄")
-        except Exception as e:
-            st.caption(f"暫時無法讀取最近紀錄")
+        except Exception:
+            st.caption("暫時無法讀取最近紀錄")
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (加入密碼保護) ---
 with tab2:
     st.title("📊 當日報表摘要")
-    if conn_success:
-        if st.button("更新統計數據"):
-            all_data = sheet.get_all_records()
-            if all_data:
-                df = pd.DataFrame(all_data)
-                today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-                # 這裡篩選開頭為今日日期的列 (iloc[0] 對應第一欄「時間」)
-                df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
-                
-                if not df_today.empty:
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("今日總案件數", len(df_today))
-                    c2.metric("最常發生場站", df_today.iloc[:, 1].mode()[0] if not df_today.iloc[:, 1].mode().empty else "無")
-                    c3.metric("主要故障類型", df_today.iloc[:, 3].mode()[0] if not df_today.iloc[:, 3].mode().empty else "無")
+    
+    # 設定密碼 (你可以自行修改 '8888' 為你想要的密碼)
+    PASSWORD = "8888"
+    
+    # 建立密碼輸入框
+    input_password = st.text_input("請輸入管理員密碼以查看統計內容", type="password")
+    
+    if input_password == PASSWORD:
+        st.success("密碼正確，正在讀取數據...")
+        if conn_success:
+            if st.button("更新統計數據"):
+                all_data = sheet.get_all_records()
+                if all_data:
+                    df = pd.DataFrame(all_data)
+                    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+                    df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
                     
-                    st.subheader("案件類別分布")
-                    chart_data = df_today.iloc[:, 3].value_counts()
-                    st.bar_chart(chart_data)
-                    
-                    st.subheader("今日詳細紀錄")
-                    st.dataframe(df_today, use_container_width=True)
+                    if not df_today.empty:
+                        c1, c2, c3 = st.columns(3)
+                        c1.metric("今日總案件數", len(df_today))
+                        c2.metric("最常發生場站", df_today.iloc[:, 1].mode()[0] if not df_today.iloc[:, 1].mode().empty else "無")
+                        c3.metric("主要故障類型", df_today.iloc[:, 3].mode()[0] if not df_today.iloc[:, 3].mode().empty else "無")
+                        
+                        st.subheader("案件類別分布")
+                        chart_data = df_today.iloc[:, 3].value_counts()
+                        st.bar_chart(chart_data)
+                        
+                        st.subheader("今日詳細紀錄")
+                        st.dataframe(df_today, use_container_width=True)
+                    else:
+                        st.info("今日尚無登記資料。")
                 else:
-                    st.info("今日尚無登記資料。")
-            else:
-                st.info("目前雲端無資料。")
+                    st.info("目前雲端無資料。")
+    elif input_password != "":
+        st.error("密碼錯誤，請重新輸入。")
