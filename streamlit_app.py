@@ -50,13 +50,12 @@ with tab1:
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
             
-            # 更新按鈕文字
+            # 按鈕文字：確認送出
             submit = st.form_submit_button("確認送出")
 
             if submit:
                 if user_name and station_name and description:
                     try:
-                        # 依照基準順序寫入
                         row_to_add = [now, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                         sheet.append_row(row_to_add)
                         st.success("✅ 資料已成功上傳！")
@@ -74,7 +73,6 @@ with tab1:
             if all_records:
                 recent_df = pd.DataFrame(all_records).tail(3).iloc[::-1]
                 
-                # 配置寬度：日期、時間、姓名、車號縮小(small)；內容加寬(large)
                 st.dataframe(
                     recent_df,
                     use_container_width=True,
@@ -98,7 +96,8 @@ with tab1:
 # --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 當日報表摘要")
-    PASSWORD = "8888"
+    # 密碼已更新為 kevin198
+    PASSWORD = "kevin198"
     input_password = st.text_input("請輸入管理員密碼", type="password")
     
     if input_password == PASSWORD:
