@@ -50,8 +50,13 @@ with tab1:
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
             
-            # 按鈕文字：確認送出
-            submit = st.form_submit_button("確認送出")
+            # --- 按鈕區塊：並排顯示 ---
+            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 4]) # 調整比例讓按鈕靠近
+            with btn_col1:
+                submit = st.form_submit_button("確認送出")
+            with btn_col2:
+                # 新增多元支付按鈕，點擊會另開視窗開啟網址
+                st.link_button("多元支付", "http://219.85.163.90:5010/")
 
             if submit:
                 if user_name and station_name and description:
@@ -72,7 +77,6 @@ with tab1:
             all_records = sheet.get_all_records()
             if all_records:
                 recent_df = pd.DataFrame(all_records).tail(3).iloc[::-1]
-                
                 st.dataframe(
                     recent_df,
                     use_container_width=True,
@@ -96,7 +100,6 @@ with tab1:
 # --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 當日報表摘要")
-    # 密碼已更新為 kevin198
     PASSWORD = "kevin198"
     input_password = st.text_input("請輸入管理員密碼", type="password")
     
