@@ -17,7 +17,7 @@ def init_connection():
 # 嘗試連線
 try:
     client = init_connection()
-    # 【提醒】請確保下方的名稱與你的 Google Sheets 檔名完全一致
+    # 已改為指定的試算表名稱：客服作業表
     sheet = client.open("客服作業表").sheet1
     conn_success = True
 except Exception as e:
@@ -37,19 +37,21 @@ if conn_success:
         st.info(f"🕒 登記時間：{now} (系統自動偵測)")
         
         # B. 使用者填寫內容
-        # 第一列：場站名稱 與 填單人姓名 (皆為必填)
         col1, col2 = st.columns(2)
         with col1:
+            # 範例已改為：華視光復場
             station_name = st.text_input("場站名稱 (必填)", placeholder="例如：華視光復場")
             caller_name = st.text_input("來電人 (選填)", placeholder="可留空")
         with col2:
             user_name = st.text_input("填單人姓名 (必填)", placeholder="請輸入姓名")
             caller_phone = st.text_input("電話 (選填)", placeholder="可留空")
         
-        # 第二列：案件類別 與 車號
         col3, col4 = st.columns(2)
         with col3:
-            category = st.selectbox("案件類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "其他"])
+            category = st.selectbox(
+                "案件類別", 
+                ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"]
+            )
         with col4:
             car_number = st.text_input("車號 (選填)", placeholder="可留空")
             
@@ -59,10 +61,9 @@ if conn_success:
         submit = st.form_submit_button("確認提交並同步雲端")
 
         if submit:
-            # 檢查 姓名、場站、描述 是否填寫
             if user_name and station_name and description:
                 try:
-                    # 按照順序組成清單寫入 Sheets：[時間, 場站名稱, 填單人姓名, 案件類別, 來電人, 電話, 車號, 描述]
+                    # 寫入順序：[時間, 場站名稱, 填單人姓名, 案件類別, 來電人, 電話, 車號, 描述]
                     row_to_add = [now, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                     sheet.append_row(row_to_add)
                     st.success("✅ 資料已成功上傳至 Google 表格！")
@@ -74,4 +75,4 @@ if conn_success:
 
 # --- 4. 頁尾資訊 ---
 st.markdown("---")
-st.caption("© 2026 公司行政管理系統 | 本系統僅供內部員工登記使用")
+st.caption("© 2026 應安客服管理系統 | 本系統僅供內部員工登記使用")
