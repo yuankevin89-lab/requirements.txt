@@ -2,7 +2,7 @@ import streamlit as st
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import datetime
-import pandas as pd # 引入 pandas 處理數據
+import pandas as pd
 
 # --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -57,45 +57,49 @@ with tab1:
                         row_to_add = [now, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                         sheet.append_row(row_to_add)
                         st.success("✅ 資料已成功上傳！")
-                        st.balloons()
+                        st.rerun() # 提交後重新整理頁面以更新下方列表
                     except Exception as upload_error:
                         st.error(f"上傳錯誤：{upload_error}")
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
+
+        # --- 新增：自動顯示最近三筆紀錄 ---
+        st.markdown("---")
+        st.subheader("🕒 最近三筆登記紀錄")
+        try:
+            # 取得所有資料
+            all_records = sheet.get_all_records()
+            if all_records:
+                # 轉成 DataFrame 並取最後三筆，然後反轉順序（最新在上面）
+                recent_df = pd.DataFrame(all_records).tail(3).iloc[::-1]
+                st.table(recent_df) # 使用表格形式美化顯示
+            else:
+                st.caption("目前尚無歷史紀錄")
+        except Exception as e:
+            st.caption("暫時無法讀取最近紀錄")
 
 # --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 當日報表摘要")
     if conn_success:
         if st.button("更新統計數據"):
-            # 讀取雲端所有資料
             all_data = sheet.get_all_records()
             if all_data:
                 df = pd.DataFrame(all_data)
-                
-                # 確保時間格式正確並篩選今天的資料
                 today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-                # 假設第一欄標題是「時間」 (請確保 Sheets 第一列標題正確)
-                # 這裡篩選開頭為今日日期的列
                 df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
                 
                 if not df_today.empty:
-                    # A. 數據指標
                     c1, c2, c3 = st.columns(3)
                     c1.metric("今日總案件數", len(df_today))
                     c2.metric("最常發生場站", df_today.iloc[:, 1].mode()[0] if not df_today.iloc[:, 1].mode().empty else "無")
                     c3.metric("主要故障類型", df_today.iloc[:, 3].mode()[0] if not df_today.iloc[:, 3].mode().empty else "無")
                     
-                    # B. 圖表展示
                     st.subheader("案件類別分布")
-                    # 使用 iloc[3] 取得類別那一欄進行統計 (對應寫入順序)
                     chart_data = df_today.iloc[:, 3].value_counts()
                     st.bar_chart(chart_data)
                     
-                    # C. 明細表格
                     st.subheader("今日詳細紀錄")
                     st.dataframe(df_today, use_container_width=True)
                 else:
                     st.info("今日尚無登記資料。")
-            else:
-                st.info("雲端目前沒有任何資料。")
