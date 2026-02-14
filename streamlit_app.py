@@ -9,7 +9,7 @@ import pytz
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 場站清單設定 ---
+# --- 2. 場站清單 ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
     "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", 
@@ -44,17 +44,17 @@ except Exception as e:
     st.error(f"連線失敗: {e}")
     conn_success = False
 
-# --- 4. 建立分頁 ---
+# --- 4. 分頁邏輯 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 with tab1:
     st.title("📝 應安客服雲端登記系統")
+    now_obj = datetime.datetime.now(tw_timezone)
+    dt_str = now_obj.strftime("%Y-%m-%d %H:%M:%S")
+
     if conn_success:
         with st.form("my_form", clear_on_submit=True):
-            now_obj = datetime.datetime.now(tw_timezone)
-            dt_str = now_obj.strftime("%Y-%m-%d %H:%M:%S")
             st.info(f"🕒 登記時間：{dt_str}")
-            
             col1, col2 = st.columns(2)
             with col1:
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
@@ -62,13 +62,11 @@ with tab1:
             with col2:
                 user_name = st.text_input("填單人 (員工姓名)")
                 caller_phone = st.text_input("電話")
-            
             col3, col4 = st.columns(2)
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
                 car_number = st.text_input("車號")
-            
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
@@ -82,58 +80,58 @@ with tab1:
             if submit:
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
-                        with st.spinner('正在上傳資料...'):
+                        with st.spinner('正在上傳...'):
                             row_to_add = [dt_str, station_name, caller_name, caller_phone, car_number, category, description, user_name]
                             sheet.append_row(row_to_add)
                             st.success("✅ 資料已成功上傳！")
-                            st.balloons()
                             st.rerun()
                     except Exception as e:
-                        st.error(f"上傳出錯：{e}")
+                        st.error(f"上傳錯誤：{e}")
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
 
-        # --- 最近三筆紀錄：移除索引、自動換行、完全鎖定 ---
+        # --- 當日登記紀錄 (8小時輪動顯示) ---
         st.markdown("---")
-        st.subheader("🕒 最近三筆登記紀錄")
+        st.subheader("🕒 當日登記紀錄 (最近 8 小時內)")
         try:
             raw_data = sheet.get_all_values()
             if len(raw_data) > 1:
                 df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                recent_df = df.tail(3).iloc[::-1]
                 
-                # 使用 HTML 方式渲染表格，並設定 index=False 隱藏最左邊的編碼
-                # 同時加入 CSS 樣式確保表格美觀並填滿寬度
-                table_html = recent_df.to_html(index=False, justify='left', classes='table table-striped')
+                # 將「日期/時間」欄位轉換為時間格式以便篩選
+                df['日期/時間'] = pd.to_datetime(df['日期/時間'])
                 
-                # 注入一點 CSS 讓表格在網頁上看起來更舒服
-                st.markdown(
-                    """
-                    <style>
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                    }
-                    th {
-                        background-color: #f0f2f6;
-                        text-align: left;
-                        padding: 8px;
-                    }
-                    td {
-                        text-align: left;
-                        padding: 8px;
-                        border-bottom: 1px solid #ddd;
-                        word-wrap: break-word;
-                    }
-                    </style>
-                    """, unsafe_allow_html=True
-                )
-                st.write(table_html, unsafe_allow_html=True)
+                # 計算 8 小時前的時間點
+                eight_hours_ago = now_obj - datetime.timedelta(hours=8)
+                
+                # 篩選符合條件的紀錄 (需大於 8 小時前)
+                filtered_df = df[df['日期/時間'] >= eight_hours_ago].copy()
+                
+                if not filtered_df.empty:
+                    # 重新格式化回字串以利顯示，並依時間倒序(最新在最上)
+                    filtered_df['日期/時間'] = filtered_df['日期/時間'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    display_df = filtered_df.iloc[::-1]
+
+                    # 移除索引並轉 HTML 顯示 (延續 2/15 版本特性：自動換行、鎖定)
+                    table_html = display_df.to_html(index=False, justify='left', classes='table table-striped')
+                    st.markdown(
+                        """
+                        <style>
+                        table { width: 100%; border-collapse: collapse; }
+                        th { background-color: #f0f2f6; text-align: left; padding: 8px; }
+                        td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; word-wrap: break-word; }
+                        </style>
+                        """, unsafe_allow_html=True
+                    )
+                    st.write(table_html, unsafe_allow_html=True)
+                else:
+                    st.caption("最近 8 小時內暫無登記紀錄。")
             else:
                 st.caption("目前無歷史資料。")
-        except:
-            st.caption("表格刷新中...")
+        except Exception as e:
+            st.caption(f"表格刷新中... (或時間格式不符：{e})")
 
+# --- Tab 2: 數據統計 (維持 2/15 版本) ---
 with tab2:
     st.title("📊 數據統計")
     PASSWORD = "kevin198"
@@ -147,5 +145,3 @@ with tab2:
                     st.metric("今日總來電數", len(df_stat))
                     st.bar_chart(df_stat.iloc[:, 1].value_counts())
                     st.dataframe(df_stat, use_container_width=True)
-    elif pw != "":
-        st.error("密碼錯誤")
