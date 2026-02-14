@@ -111,14 +111,14 @@ with tab1:
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "日期": st.column_config.TextColumn("日期", width="small"),
-                        "時間": st.column_config.TextColumn("時間", width="small"),
+                        "日期/時間": st.column_config.TextColumn("日期", width="small"),
+                        "場別": st.column_config.TextColumn("場別", width="medium"),
                         "姓名": st.column_config.TextColumn("姓名", width="small"),
+                        "電話": st.column_config.TextColumn("電話", width="medium"),
                         "車號": st.column_config.TextColumn("車號", width="small"),
                         "內容": st.column_config.TextColumn("內容", width="large"),
-                        "場別": st.column_config.TextColumn("場別", width="medium"),
-                        "電話": st.column_config.TextColumn("電話", width="medium"),
                         "記錄人": st.column_config.TextColumn("記錄人", width="medium"),
+                        "其他": st.column_config.TextColumn("車號", width="small"),
                     }
                 )
             else:
