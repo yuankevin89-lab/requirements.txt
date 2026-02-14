@@ -54,7 +54,7 @@ with tab1:
 
     if conn_success:
         with st.form("my_form", clear_on_submit=True):
-            st.info(f"🕒 當前時間：{dt_str}")
+            st.info(f"🕒 登記時間：{dt_str}")
             col1, col2 = st.columns(2)
             with col1:
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
@@ -66,7 +66,7 @@ with tab1:
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
-                car_number = st.text_input("車號")
+                car_number_input = st.text_input("車號")
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
@@ -80,8 +80,8 @@ with tab1:
             if submit:
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
-                        with st.spinner('上傳中...'):
-                            row_to_add = [dt_str, station_name, caller_name, caller_phone, car_number, category, description, user_name]
+                        with st.spinner('正在上傳...'):
+                            row_to_add = [dt_str, station_name, caller_name, caller_phone, car_number_input, category, description, user_name]
                             sheet.append_row(row_to_add)
                             st.success("✅ 資料已成功上傳！")
                             st.rerun()
@@ -90,48 +90,45 @@ with tab1:
                 else:
                     st.warning("⚠️ 請完整填寫必填欄位。")
 
-        # --- 當日登記紀錄 (自動相容不同日期格式) ---
+        # --- 🚗 車號紀錄快速查詢區塊 ---
         st.markdown("---")
-        st.subheader("🕒 當日登記紀錄 (最近 8 小時內)")
-        try:
-            raw_data = sheet.get_all_values()
-            if len(raw_data) > 1:
-                df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                
-                # --- 重點修正：使用 mixed 模式解析日期，並確保時區一致 ---
-                df['日期/時間'] = pd.to_datetime(df['日期/時間'], format='mixed').dt.tz_localize(None)
-                current_time_no_tz = now_obj.replace(tzinfo=None)
-                
-                # 計算 8 小時前
-                eight_hours_ago = current_time_no_tz - datetime.timedelta(hours=8)
-                
-                # 篩選
-                filtered_df = df[df['日期/時間'] >= eight_hours_ago].copy()
-                
-                if not filtered_df.empty:
-                    # 回復成字串顯示
-                    filtered_df['日期/時間'] = filtered_df['日期/時間'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                    display_df = filtered_df.iloc[::-1]
+        st.subheader("🔍 車號歷史紀錄查詢")
+        search_car = st.text_input("輸入完整或部分車牌號碼進行搜尋 (例如: ABC-1234)", help="輸入完成後請按 Enter")
+        
+        if search_car:
+            try:
+                raw_data = sheet.get_all_values()
+                if len(raw_data) > 1:
+                    df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+                    
+                    # 篩選車號：支援不分大小寫的包含式搜尋
+                    result_df = df[df['車號'].str.contains(search_car, case=False, na=False)]
+                    
+                    if not result_df.empty:
+                        st.write(f"找到 {len(result_df)} 筆與 **{search_car}** 相關的紀錄：")
+                        # 最新紀錄排在最上面
+                        display_df = result_df.iloc[::-1]
 
-                    table_html = display_df.to_html(index=False, justify='left', classes='table')
-                    st.markdown(
-                        """
-                        <style>
-                        table { width: 100%; border-collapse: collapse; }
-                        th { background-color: #f0f2f6; text-align: left; padding: 10px; font-size: 14px; }
-                        td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; word-wrap: break-word; font-size: 14px; }
-                        </style>
-                        """, unsafe_allow_html=True
-                    )
-                    st.write(table_html, unsafe_allow_html=True)
-                else:
-                    st.caption("最近 8 小時內暫無紀錄。")
-            else:
-                st.caption("目前無歷史資料。")
-        except Exception as e:
-            st.error(f"表格顯示異常，請檢查資料格式：{e}")
+                        # 使用 HTML 渲染以保持「最新」版本的自動換行與鎖定特性
+                        table_html = display_df.to_html(index=False, justify='left', classes='table')
+                        st.markdown(
+                            """
+                            <style>
+                            table { width: 100%; border-collapse: collapse; }
+                            th { background-color: #f0f2f6; text-align: left; padding: 10px; font-size: 14px; }
+                            td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; word-wrap: break-word; font-size: 14px; }
+                            </style>
+                            """, unsafe_allow_html=True
+                        )
+                        st.write(table_html, unsafe_allow_html=True)
+                    else:
+                        st.info(f"查無車號 **{search_car}** 的歷史紀錄。")
+            except Exception as e:
+                st.error(f"查詢時發生錯誤：{e}")
+        else:
+            st.caption("請在上方欄位輸入車號以查詢歷史紀錄。")
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (維持最新版本) ---
 with tab2:
     st.title("📊 數據統計")
-    # ... (其餘統計代碼不變)
+    # ... (代碼與之前相同)
