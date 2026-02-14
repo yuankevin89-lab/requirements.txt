@@ -3,15 +3,31 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import datetime
 import pandas as pd
-import pytz  # 新增時區處理模組
+import pytz
 
 # --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
-
-# 設定台灣時區
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. Google Sheets 連線函式 ---
+# --- 2. 場站清單設定 ---
+STATION_LIST = [
+    "請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
+    "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", 
+    "統領場", "信義安和", "僑信場", "台北民生", "美麗華場", "基湖場", "北安場", "龍江場", "農安場", "民權西場", 
+    "承德場", "承德三", "大龍場", "延平北場", "雙連", "中山機車", "中山場", "南昌", "博愛", "金山", "金華", 
+    "詔安", "通化", "杭南一", "復興南", "逸仙", "興岩", "木柵", "泉州", "汀洲", "福州", "北平東", "水源", 
+    "重慶南", "西寧市場", "西園國宅", "復興北", "宏泰民生", "福善一", "石牌二", "中央北", "紅毛城", "三玉", 
+    "士林", "永平", "大龍峒社宅", "昆陽一", "洲子場", "環山", "文湖場", "民善場", "新明場", "德明研推", 
+    "東湖場", "舊宗社宅", "秀山機車", "景平", "環狀A", "土城中華場", "板橋光正", "合宜場", "土城裕民", 
+    "中央二", "中央三", "板橋文化", "同安", "佳音-竹林", "青潭國小", "林口文化", "秀峰場", "興南場", 
+    "中和莊敬", "三重永福", "徐匯場", "蘆洲保和場", "蘆洲三民", "榮華場", "富貴場", "鄉長二", "汐止忠孝", 
+    "新台五路", "蘆竹場", "龜山興富", "竹東長春", "竹南中山", "銅鑼停一", "台中黎明", "後龍", "台中復興", 
+    "文心場", "大和屋一場", "大和屋二場", "北港場", "西螺", "虎尾", "民德", "衛民場", "衛民二場", 
+    "台南北門場", "台南永福", "台南國華", "台南民權", "善化", "仁德", "台南中華場", "致穩", "台南康樂場", 
+    "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場"
+]
+
+# --- 3. Google Sheets 連線 ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_dict = st.secrets["google_sheets"]
@@ -27,21 +43,20 @@ except Exception as e:
     st.error(f"連線失敗: {e}")
     conn_success = False
 
-# --- 3. 建立分頁 ---
+# --- 4. 建立分頁 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
-# --- Tab 1: 案件登記 ---
 with tab1:
     st.title("📝 應安客服雲端登記系統")
     if conn_success:
         with st.form("my_form", clear_on_submit=True):
-            # 使用台灣時區獲取現在時間
             now_tw = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
             st.info(f"🕒 登記時間：{now_tw} (台北時區 UTC+8)")
             
             col1, col2 = st.columns(2)
             with col1:
-                station_name = st.text_input("場站名稱 (必填)", placeholder="例如：華視光復場")
+                # 關鍵字搜尋選單
+                station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
                 caller_name = st.text_input("來電人 (選填)", placeholder="可留空")
             with col2:
                 user_name = st.text_input("填單人姓名 (必填)", placeholder="請輸入姓名")
@@ -55,7 +70,7 @@ with tab1:
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
             
-            # --- 按鈕區塊 ---
+            # 按鈕區塊
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
             with btn_col1:
                 submit = st.form_submit_button("確認送出")
@@ -65,7 +80,8 @@ with tab1:
                 st.link_button("簡訊", "https://umc.fetnet.net/#/menu/login")
 
             if submit:
-                if user_name and station_name and description:
+                # 檢查場站是否有選
+                if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
                         row_to_add = [now_tw, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                         sheet.append_row(row_to_add)
@@ -74,7 +90,7 @@ with tab1:
                     except Exception as upload_error:
                         st.error(f"上傳錯誤：{upload_error}")
                 else:
-                    st.warning("⚠️ 請填寫必填欄位。")
+                    st.warning("⚠️ 請填寫必填欄位並選擇場站。")
 
         # --- 最近三筆紀錄：維持優化配置 ---
         st.markdown("---")
@@ -101,30 +117,24 @@ with tab1:
             else:
                 st.caption("目前尚無歷史紀錄")
         except Exception:
-            st.caption("暫時無法讀取最近紀錄")
+            st.caption("無法讀取紀錄")
 
-# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計摘要")
     PASSWORD = "kevin198"
     input_password = st.text_input("請輸入管理員密碼", type="password")
-    
     if input_password == PASSWORD:
         if conn_success:
             if st.button("更新統計數據"):
                 all_data = sheet.get_all_records()
                 if all_data:
                     df = pd.DataFrame(all_data)
-                    # 統計篩選也要用台灣時間
                     today_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d")
                     df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
-                    
                     if not df_today.empty:
                         c1, c2, c3 = st.columns(3)
                         c1.metric("今日總案件數", len(df_today))
                         st.bar_chart(df_today.iloc[:, 3].value_counts())
                         st.dataframe(df_today, use_container_width=True)
-                    else:
-                        st.info("今日尚無資料。")
     elif input_password != "":
         st.error("密碼錯誤")
