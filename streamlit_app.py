@@ -3,9 +3,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 import datetime
 import pandas as pd
+import pytz  # 新增時區處理模組
 
 # --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
+
+# 設定台灣時區
+tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- 2. Google Sheets 連線函式 ---
 def init_connection():
@@ -31,8 +35,9 @@ with tab1:
     st.title("📝 應安客服雲端登記系統")
     if conn_success:
         with st.form("my_form", clear_on_submit=True):
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.info(f"🕒 登記時間：{now} (系統自動偵測)")
+            # 使用台灣時區獲取現在時間
+            now_tw = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
+            st.info(f"🕒 登記時間：{now_tw} (台北時區 UTC+8)")
             
             col1, col2 = st.columns(2)
             with col1:
@@ -50,7 +55,7 @@ with tab1:
                 
             description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
             
-            # --- 按鈕區塊：移除超商後的並排 ---
+            # --- 按鈕區塊 ---
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
             with btn_col1:
                 submit = st.form_submit_button("確認送出")
@@ -62,7 +67,7 @@ with tab1:
             if submit:
                 if user_name and station_name and description:
                     try:
-                        row_to_add = [now, station_name, user_name, category, caller_name, caller_phone, car_number, description]
+                        row_to_add = [now_tw, station_name, user_name, category, caller_name, caller_phone, car_number, description]
                         sheet.append_row(row_to_add)
                         st.success("✅ 資料已成功上傳！")
                         st.rerun()
@@ -71,7 +76,7 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
 
-        # --- 最近三筆紀錄：欄位寬度優化 ---
+        # --- 最近三筆紀錄：維持優化配置 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
@@ -110,7 +115,8 @@ with tab2:
                 all_data = sheet.get_all_records()
                 if all_data:
                     df = pd.DataFrame(all_data)
-                    today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+                    # 統計篩選也要用台灣時間
+                    today_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d")
                     df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
                     
                     if not df_today.empty:
