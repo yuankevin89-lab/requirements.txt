@@ -93,17 +93,42 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位。")
 
-        # --- 最近三筆紀錄：使用 st.table 實現自動換行與完全鎖定 ---
+        # --- 最近三筆紀錄：移除索引、自動換行、完全鎖定 ---
         st.markdown("---")
-        st.subheader("🕒 最近三筆登記紀錄 (支援自動換行)")
+        st.subheader("🕒 最近三筆登記紀錄")
         try:
             raw_data = sheet.get_all_values()
             if len(raw_data) > 1:
                 df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
                 recent_df = df.tail(3).iloc[::-1]
                 
-                # st.table 會自動處理文字換行，確保長描述能完全顯示
-                st.table(recent_df)
+                # 使用 HTML 方式渲染表格，並設定 index=False 隱藏最左邊的編碼
+                # 同時加入 CSS 樣式確保表格美觀並填滿寬度
+                table_html = recent_df.to_html(index=False, justify='left', classes='table table-striped')
+                
+                # 注入一點 CSS 讓表格在網頁上看起來更舒服
+                st.markdown(
+                    """
+                    <style>
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                    }
+                    th {
+                        background-color: #f0f2f6;
+                        text-align: left;
+                        padding: 8px;
+                    }
+                    td {
+                        text-align: left;
+                        padding: 8px;
+                        border-bottom: 1px solid #ddd;
+                        word-wrap: break-word;
+                    }
+                    </style>
+                    """, unsafe_allow_html=True
+                )
+                st.write(table_html, unsafe_allow_html=True)
             else:
                 st.caption("目前無歷史資料。")
         except:
