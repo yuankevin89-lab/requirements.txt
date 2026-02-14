@@ -51,26 +51,29 @@ with tab1:
     if conn_success:
         with st.form("my_form", clear_on_submit=True):
             now_obj = datetime.datetime.now(tw_timezone)
-            date_str = now_obj.strftime("%Y-%m-%d")
-            time_str = now_obj.strftime("%H:%M:%S")
-            st.info(f"🕒 登記時間：{date_str} {time_str}")
+            # 合併日期與時間為一個欄位 (日期/時間)
+            dt_str = now_obj.strftime("%Y-%m-%d %H:%M:%S")
+            st.info(f"🕒 登記時間：{dt_str}")
             
             col1, col2 = st.columns(2)
             with col1:
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
-                caller_name = st.text_input("來電人 (選填)")
+                caller_name = st.text_input("姓名 (來電人姓名)") # 對應標題：姓名
             with col2:
-                user_name = st.text_input("填單人姓名 (必填)")
-                caller_phone = st.text_input("電話 (選填)")
+                user_name = st.text_input("填單人 (員工姓名)") # 對應標題：填單人
+                caller_phone = st.text_input("電話") # 對應標題：電話
             
             col3, col4 = st.columns(2)
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
-                car_number = st.text_input("車號 (選填)")
-                
-            description = st.text_area("詳細描述 (必填)")
+                car_number = st.text_input("車號") # 對應標題：車號
             
+            # 內容與描述
+            content_text = st.text_input("內容 (簡短摘要)") # 對應標題：內容
+            description = st.text_area("描述 (詳細過程)") # 對應標題：描述
+            
+            # 按鈕區塊
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
             with btn_col1:
                 submit = st.form_submit_button("確認送出")
@@ -82,40 +85,40 @@ with tab1:
             if submit:
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
-                        # 嚴格寫入順序：日期, 時間, 場站, 來電人, 電話, 車號, 類別, 描述, 填單人
-                        row_to_add = [date_str, time_str, station_name, caller_name, caller_phone, car_number, category, description, user_name]
+                        # 嚴格對應你要求的順序：日期/時間, 場站, 姓名, 電話, 車號, 內容, 類別, 描述, 填單人
+                        row_to_add = [dt_str, station_name, caller_name, caller_phone, car_number, content_text, category, description, user_name]
                         sheet.append_row(row_to_add)
-                        st.success("✅ 已上傳！")
+                        st.success("✅ 資料已成功上傳！")
                         st.rerun()
                     except Exception as e:
                         st.error(f"錯誤：{e}")
 
-        # --- 最近三筆紀錄：使用自動標題對齊 ---
+        # --- 最近三筆紀錄：視覺優化 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
-            # 抓取所有資料並轉為 DataFrame
-            data = sheet.get_all_values()
-            if len(data) > 1:
-                df = pd.DataFrame(data[1:], columns=data[0]) # 自動抓取第一列當標題
+            raw_data = sheet.get_all_values()
+            if len(raw_data) > 1:
+                df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
                 recent_df = df.tail(3).iloc[::-1]
                 
-                # 自動判斷標題名稱來設定寬度
+                # 配置寬度
+                # 日期/時間、姓名、車號、電話 -> small
+                # 內容、描述 -> large
                 config = {}
                 for col in df.columns:
-                    if "內容" in col or "描述" in col:
+                    if col in ["內容", "描述"]:
                         config[col] = st.column_config.TextColumn(col, width="large")
-                    elif col in ["日期", "時間", "姓名", "車號"]:
+                    elif col in ["日期/時間", "姓名", "車號", "電話"]:
                         config[col] = st.column_config.TextColumn(col, width="small")
                     else:
                         config[col] = st.column_config.TextColumn(col, width="medium")
 
                 st.dataframe(recent_df, use_container_width=True, hide_index=True, column_config=config)
-            else:
-                st.caption("目前尚無資料")
         except:
             st.caption("表格刷新中...")
 
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計")
     PASSWORD = "kevin198"
