@@ -111,7 +111,7 @@ with tab1:
                         "電話": st.column_config.TextColumn("電話", width="small"),
                         "車號": st.column_config.TextColumn("車號", width="small"),
                         "內容": st.column_config.TextColumn("內容", width="large"),
-                        "描述": st.column_config.TextColumn("描述", width="large"),
+                        "類別": st.column_config.TextColumn("類別", width="large"),
                         "記錄人": st.column_config.TextColumn("記錄人", width="small"),
                     }
                 )
