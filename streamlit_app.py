@@ -55,7 +55,6 @@ with tab1:
             
             col1, col2 = st.columns(2)
             with col1:
-                # 關鍵字搜尋選單
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
                 caller_name = st.text_input("來電人 (選填)", placeholder="可留空")
             with col2:
@@ -64,7 +63,8 @@ with tab1:
             
             col3, col4 = st.columns(2)
             with col3:
-                category = st.selectbox("案件類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
+                # 已更新為「來電類別」
+                category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
                 car_number = st.text_input("車號 (選填)", placeholder="可留空")
                 
@@ -80,7 +80,6 @@ with tab1:
                 st.link_button("簡訊", "https://umc.fetnet.net/#/menu/login")
 
             if submit:
-                # 檢查場站是否有選
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
                         row_to_add = [now_tw, station_name, user_name, category, caller_name, caller_phone, car_number, description]
@@ -92,7 +91,7 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位並選擇場站。")
 
-        # --- 最近三筆紀錄：維持優化配置 ---
+        # --- 最近三筆紀錄 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
@@ -114,8 +113,6 @@ with tab1:
                         "記錄人": st.column_config.TextColumn("記錄人", width="medium"),
                     }
                 )
-            else:
-                st.caption("目前尚無歷史紀錄")
         except Exception:
             st.caption("無法讀取紀錄")
 
@@ -133,8 +130,8 @@ with tab2:
                     df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
                     if not df_today.empty:
                         c1, c2, c3 = st.columns(3)
-                        c1.metric("今日總案件數", len(df_today))
-                        st.bar_chart(df_today.iloc[:, 3].value_counts())
+                        c1.metric("今日總來電數", len(df_today)) # 已更新文字
+                        st.bar_chart(df_today.iloc[:, 3].value_counts()) # 統計圖表標籤會自動根據資料更新
                         st.dataframe(df_today, use_container_width=True)
     elif input_password != "":
         st.error("密碼錯誤")
