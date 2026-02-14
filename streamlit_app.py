@@ -9,7 +9,7 @@ import pytz
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 場站清單設定 ---
+# --- 2. 場站清單 ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
     "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", 
@@ -50,30 +50,27 @@ with tab1:
     st.title("📝 應安客服雲端登記系統")
     if conn_success:
         with st.form("my_form", clear_on_submit=True):
-            # 獲取台北時間，並拆分為日期與時間
             now_obj = datetime.datetime.now(tw_timezone)
             date_str = now_obj.strftime("%Y-%m-%d")
             time_str = now_obj.strftime("%H:%M:%S")
-            
-            st.info(f"🕒 登記時間：{date_str} {time_str} (台北時區 UTC+8)")
+            st.info(f"🕒 登記時間：{date_str} {time_str}")
             
             col1, col2 = st.columns(2)
             with col1:
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
-                caller_name = st.text_input("來電人 (選填)", placeholder="可留空")
+                caller_name = st.text_input("來電人 (選填)")
             with col2:
-                user_name = st.text_input("填單人姓名 (必填)", placeholder="請輸入姓名")
-                caller_phone = st.text_input("電話 (選填)", placeholder="可留空")
+                user_name = st.text_input("填單人姓名 (必填)")
+                caller_phone = st.text_input("電話 (選填)")
             
             col3, col4 = st.columns(2)
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
-                car_number = st.text_input("車號 (選填)", placeholder="可留空")
+                car_number = st.text_input("車號 (選填)")
                 
-            description = st.text_area("詳細描述 (必填)", placeholder="請具體說明需求內容...")
+            description = st.text_area("詳細描述 (必填)")
             
-            # --- 按鈕區塊 ---
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
             with btn_col1:
                 submit = st.form_submit_button("確認送出")
@@ -85,65 +82,43 @@ with tab1:
             if submit:
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
-                        # 嚴格對照 Sheets 欄位順序：日期, 時間, 場別, 姓名, 電話, 車號, 內容, 記錄人
-                        # (請根據你 Sheets 的標題列順序調整這裡的 row_to_add)
-                        row_to_add = [date_str, time_str, station_name, caller_name, caller_phone, car_number, description, user_name]
+                        # 嚴格寫入順序：日期, 時間, 場站, 來電人, 電話, 車號, 類別, 描述, 填單人
+                        row_to_add = [date_str, time_str, station_name, caller_name, caller_phone, car_number, category, description, user_name]
                         sheet.append_row(row_to_add)
-                        st.success("✅ 資料已成功上傳！")
+                        st.success("✅ 已上傳！")
                         st.rerun()
-                    except Exception as upload_error:
-                        st.error(f"上傳錯誤：{upload_error}")
-                else:
-                    st.warning("⚠️ 請填寫必填欄位並選擇場站。")
+                    except Exception as e:
+                        st.error(f"錯誤：{e}")
 
-        # --- 最近三筆紀錄：精準欄位對齊 ---
+        # --- 最近三筆紀錄：使用自動標題對齊 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
-            # 重新抓取資料確保即時性
-            all_records = sheet.get_all_records()
-            if all_records:
-                recent_df = pd.DataFrame(all_records).tail(3).iloc[::-1]
+            # 抓取所有資料並轉為 DataFrame
+            data = sheet.get_all_values()
+            if len(data) > 1:
+                df = pd.DataFrame(data[1:], columns=data[0]) # 自動抓取第一列當標題
+                recent_df = df.tail(3).iloc[::-1]
                 
-                # 配置寬度：日期、時間、姓名、車號縮小(small)；內容加寬(large)
-                st.dataframe(
-                    recent_df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "日期": st.column_config.TextColumn("日期", width="small"),
-                        "時間": st.column_config.TextColumn("時間", width="small"),
-                        "姓名": st.column_config.TextColumn("姓名", width="small"),
-                        "車號": st.column_config.TextColumn("車號", width="small"),
-                        "內容": st.column_config.TextColumn("內容", width="large"),
-                        "場別": st.column_config.TextColumn("場別", width="medium"),
-                        "電話": st.column_config.TextColumn("電話", width="medium"),
-                        "記錄人": st.column_config.TextColumn("記錄人", width="medium"),
-                    }
-                )
-            else:
-                st.caption("目前尚無歷史紀錄")
-        except Exception as e:
-            st.caption(f"表格顯示異常，請確認 Sheets 標題是否相符。")
+                # 自動判斷標題名稱來設定寬度
+                config = {}
+                for col in df.columns:
+                    if "內容" in col or "描述" in col:
+                        config[col] = st.column_config.TextColumn(col, width="large")
+                    elif col in ["日期", "時間", "姓名", "車號"]:
+                        config[col] = st.column_config.TextColumn(col, width="small")
+                    else:
+                        config[col] = st.column_config.TextColumn(col, width="medium")
 
-# --- Tab 2: 數據統計 ---
+                st.dataframe(recent_df, use_container_width=True, hide_index=True, column_config=config)
+            else:
+                st.caption("目前尚無資料")
+        except:
+            st.caption("表格刷新中...")
+
 with tab2:
-    st.title("📊 數據統計摘要")
+    st.title("📊 數據統計")
     PASSWORD = "kevin198"
-    input_password = st.text_input("請輸入管理員密碼", type="password")
-    if input_password == PASSWORD:
-        if conn_success:
-            if st.button("更新統計數據"):
-                all_data = sheet.get_all_records()
-                if all_data:
-                    df = pd.DataFrame(all_data)
-                    today_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d")
-                    # 假設第一欄是日期
-                    df_today = df[df.iloc[:, 0].astype(str).str.contains(today_str)]
-                    if not df_today.empty:
-                        c1, c2, c3 = st.columns(3)
-                        c1.metric("今日總來電數", len(df_today))
-                        st.bar_chart(df_today.iloc[:, 2].value_counts()) # 統計場別分布
-                        st.dataframe(df_today, use_container_width=True)
-    elif input_password != "":
-        st.error("密碼錯誤")
+    pw = st.text_input("管理員密碼", type="password")
+    if pw == PASSWORD:
+        st.write("已解鎖統計功能")
