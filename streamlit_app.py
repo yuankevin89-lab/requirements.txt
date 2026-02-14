@@ -69,7 +69,6 @@ with tab1:
             with col4:
                 car_number = st.text_input("車號")
             
-            # 描述欄位 (已移除內容欄位)
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
@@ -83,7 +82,6 @@ with tab1:
             if submit:
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
-                        # 嚴格對應順序：日期/時間, 場站, 姓名, 電話, 車號, 類別, 描述, 填單人
                         row_to_add = [dt_str, station_name, caller_name, caller_phone, car_number, category, description, user_name]
                         sheet.append_row(row_to_add)
                         st.success("✅ 資料已成功上傳！")
@@ -93,7 +91,7 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位並選擇場站。")
 
-        # --- 最近三筆紀錄顯示 ---
+        # --- 最近三筆紀錄：強制鎖定欄位配置 ---
         st.markdown("---")
         st.subheader("🕒 最近三筆登記紀錄")
         try:
@@ -102,17 +100,22 @@ with tab1:
                 df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
                 recent_df = df.tail(3).iloc[::-1]
                 
-                # 配置寬度
-                config = {}
-                for col in df.columns:
-                    if col == "描述":
-                        config[col] = st.column_config.TextColumn(col, width="large")
-                    elif col in ["日期/時間", "姓名", "車號", "電話"]:
-                        config[col] = st.column_config.TextColumn(col, width="small")
-                    else:
-                        config[col] = st.column_config.TextColumn(col, width="medium")
-
-                st.dataframe(recent_df, use_container_width=True, hide_index=True, column_config=config)
+                # 使用嚴格定義的 column_config 來鎖定視覺效果
+                st.dataframe(
+                    recent_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "日期/時間": st.column_config.TextColumn("日期/時間", width="medium"),
+                        "場站": st.column_config.TextColumn("場站", width="small"),
+                        "姓名": st.column_config.TextColumn("姓名", width="small"),
+                        "電話": st.column_config.TextColumn("電話", width="small"),
+                        "車號": st.column_config.TextColumn("車號", width="small"),
+                        "類別": st.column_config.TextColumn("類別", width="small"),
+                        "描述": st.column_config.TextColumn("描述", width="large"),
+                        "填單人": st.column_config.TextColumn("填單人", width="small"),
+                    }
+                )
         except:
             st.caption("表格刷新中...")
 
@@ -128,5 +131,5 @@ with tab2:
                 if all_data:
                     df = pd.DataFrame(all_data)
                     st.metric("今日總來電數", len(df))
-                    st.bar_chart(df.iloc[:, 1].value_counts()) # 場站統計
+                    st.bar_chart(df.iloc[:, 1].value_counts())
                     st.dataframe(df, use_container_width=True)
