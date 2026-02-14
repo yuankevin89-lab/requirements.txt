@@ -47,6 +47,7 @@ except Exception as e:
 # --- 4. 分頁邏輯 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
+# --- Tab 1: 案件登記 & 車號查詢 ---
 with tab1:
     st.title("📝 應安客服雲端登記系統")
     now_obj = datetime.datetime.now(tw_timezone)
@@ -66,7 +67,7 @@ with tab1:
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
-                car_number_input = st.text_input("車號")
+                car_num = st.text_input("車號")
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
@@ -81,7 +82,7 @@ with tab1:
                 if user_name and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
                         with st.spinner('正在上傳...'):
-                            row_to_add = [dt_str, station_name, caller_name, caller_phone, car_number_input, category, description, user_name]
+                            row_to_add = [dt_str, station_name, caller_name, caller_phone, car_num, category, description, user_name]
                             sheet.append_row(row_to_add)
                             st.success("✅ 資料已成功上傳！")
                             st.rerun()
@@ -90,45 +91,64 @@ with tab1:
                 else:
                     st.warning("⚠️ 請完整填寫必填欄位。")
 
-        # --- 🚗 車號紀錄快速查詢區塊 ---
         st.markdown("---")
         st.subheader("🔍 車號歷史紀錄查詢")
-        search_car = st.text_input("輸入完整或部分車牌號碼進行搜尋 (例如: ABC-1234)", help="輸入完成後請按 Enter")
+        search_car = st.text_input("輸入車牌號碼進行搜尋", placeholder="例如: ABC-1234")
         
         if search_car:
             try:
                 raw_data = sheet.get_all_values()
                 if len(raw_data) > 1:
                     df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                    
-                    # 篩選車號：支援不分大小寫的包含式搜尋
                     result_df = df[df['車號'].str.contains(search_car, case=False, na=False)]
-                    
                     if not result_df.empty:
-                        st.write(f"找到 {len(result_df)} 筆與 **{search_car}** 相關的紀錄：")
-                        # 最新紀錄排在最上面
                         display_df = result_df.iloc[::-1]
-
-                        # 使用 HTML 渲染以保持「最新」版本的自動換行與鎖定特性
                         table_html = display_df.to_html(index=False, justify='left', classes='table')
-                        st.markdown(
-                            """
-                            <style>
-                            table { width: 100%; border-collapse: collapse; }
-                            th { background-color: #f0f2f6; text-align: left; padding: 10px; font-size: 14px; }
-                            td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; word-wrap: break-word; font-size: 14px; }
-                            </style>
-                            """, unsafe_allow_html=True
-                        )
+                        st.markdown("<style>table { width: 100%; border-collapse: collapse; } th { background-color: #f0f2f6; text-align: left; padding: 10px; } td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; word-wrap: break-word; }</style>", unsafe_allow_html=True)
                         st.write(table_html, unsafe_allow_html=True)
                     else:
-                        st.info(f"查無車號 **{search_car}** 的歷史紀錄。")
+                        st.info(f"查無車號 **{search_car}** 的紀錄。")
             except Exception as e:
-                st.error(f"查詢時發生錯誤：{e}")
-        else:
-            st.caption("請在上方欄位輸入車號以查詢歷史紀錄。")
+                st.error(f"查詢出錯：{e}")
 
-# --- Tab 2: 數據統計 (維持最新版本) ---
+# --- Tab 2: 數據統計 (修復版) ---
 with tab2:
     st.title("📊 數據統計")
-    # ... (代碼與之前相同)
+    PASSWORD = "kevin198"
+    pw = st.text_input("管理員密碼", type="password")
+    
+    if pw == PASSWORD:
+        if conn_success:
+            if st.button("🔄 刷新統計數據"):
+                try:
+                    with st.spinner('正在計算統計資料...'):
+                        raw_data = sheet.get_all_values()
+                        if len(raw_data) > 1:
+                            df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+                            
+                            # 關鍵修正：相容日期格式，並過濾出今日資料
+                            df_stat['日期/時間'] = pd.to_datetime(df_stat['日期/時間'], format='mixed').dt.date
+                            today = datetime.datetime.now(tw_timezone).date()
+                            today_df = df_stat[df_stat['日期/時間'] == today]
+
+                            # 顯示指標
+                            m1, m2 = st.columns(2)
+                            m1.metric("今日總來電數", len(today_df))
+                            m2.metric("歷史累積總數", len(df_stat))
+
+                            st.subheader("今日各場站來電分佈")
+                            if not today_df.empty:
+                                # 這裡的欄位索引 1 通常是「場站」
+                                station_counts = today_df.iloc[:, 1].value_counts()
+                                st.bar_chart(station_counts)
+                                
+                                st.subheader("今日明細資料")
+                                st.dataframe(today_df, use_container_width=True)
+                            else:
+                                st.info("今日尚無登記資料。")
+                        else:
+                            st.info("目前雲端表單內無任何資料。")
+                except Exception as e:
+                    st.error(f"統計分析失敗：{e}")
+    elif pw != "":
+        st.error("🔒 密碼不正確")
