@@ -8,56 +8,36 @@ import os
 
 # --- 設定區域 ---
 TW_TIMEZONE = pytz.timezone('Asia/Taipei')
-# GitHub Actions 會在執行時動態產生這個檔案
 JSON_FILE = 'service_account.json' 
-SHEET_NAME = '碧華國小車位統計'
+SHEET_NAME = '客服作業表'      # 試算表檔名
+WORKSHEET_NAME = '車位紀錄'   # 指定存入的工作表名稱
 
 def get_realtime_spots():
-    """前往新北市政府網站抓取碧華國小即時車位"""
     url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
     try:
         response = requests.get(url, headers=headers, timeout=15)
-        # 指定解析器為 html.parser 避免環境差異
         soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # 定位「剩餘汽車數」的 HTML 元素
         spots_element = soup.find("span", {"id": "ContentPlaceHolder1_lblAvailableCar"})
-        
-        if spots_element:
-            return spots_element.text.strip()
-        else:
-            return "無法解析數字"
+        return spots_element.text.strip() if spots_element else "無法解析數字"
     except Exception as e:
         return f"抓取失敗: {str(e)}"
 
 def update_google_sheet(spots):
-    """將抓到的數字寫入 Google Sheets"""
     try:
-        # 檢查金鑰檔案是否存在
-        if not os.path.exists(JSON_FILE):
-            print(f"錯誤：找不到金鑰檔案 {JSON_FILE}")
-            return
-
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # GitHub Actions 會從 Secrets 動態產生此檔案
         creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_FILE, scope)
         client = gspread.authorize(creds)
         
-        # 開啟試算表
-        sheet = client.open(SHEET_NAME).sheet1
+        # --- 關鍵修正：指定開啟「車位紀錄」分頁 ---
+        sheet = client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
         
-        # 取得台北時間
         now = datetime.datetime.now(TW_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
-        
-        # 寫入新的一列：[時間, 剩餘車位]
         sheet.append_row([now, spots])
-        print(f"✅ [{now}] 成功紀錄車位數：{spots}")
-        
+        print(f"✅ [{now}] 成功紀錄至 {WORKSHEET_NAME}：{spots}")
     except Exception as e:
-        print(f"❌ 寫入試算表失敗: {e}")
+        print(f"❌ 寫入失敗: {e}")
 
 if __name__ == "__main__":
     current_spots = get_realtime_spots()
