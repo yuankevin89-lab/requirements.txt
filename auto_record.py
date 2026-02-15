@@ -1,29 +1,59 @@
-name: Hourly Parking Record
+import requests
+from bs4 import BeautifulSoup
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import datetime
+import pytz
+import time
 
-on:
-  schedule:
-    - cron: '0 * * * *' # 每小時執行一次
-  workflow_dispatch:      # 讓您可以手動點擊測試
+# --- 1. 設定區域與連線 ---
+TW_TIMEZONE = pytz.timezone('Asia/Taipei')
+# 這裡請確保檔案名稱與你下載的一致，或者改名為 service_account.json
+JSON_FILE = 'service_account.json' 
+SHEET_NAME = '碧華國小車位統計'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+def get_realtime_spots():
+    """前往新北市政府網站抓取碧華國小即時車位"""
+    url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 根據碧華國小網頁結構定位「剩餘汽車數」的 ID
+        # 注意：若網頁結構改變，此 ID 可能需微調
+        spots_element = soup.find("span", {"id": "ContentPlaceHolder1_lblAvailableCar"})
+        
+        if spots_element:
+            return spots_element.text.strip()
+        else:
+            return "讀取不到數字"
+    except Exception as e:
+        return f"抓取失敗: {str(e)}"
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python_version: '3.9'
+def update_google_sheet(spots):
+    """將抓到的數字寫入 Google Sheets"""
+    try:
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_FILE, scope)
+        client = gspread.authorize(creds)
+        
+        # 開啟試算表
+        sheet = client.open(SHEET_NAME).sheet1
+        
+        # 取得台北時間
+        now = datetime.datetime.now(TW_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 寫入新的一列
+        sheet.append_row([now, spots])
+        print(f"[{now}] 成功紀錄車位數：{spots}")
+        
+    except Exception as e:
+        print(f"寫入試算表失敗: {e}")
 
-      - name: Install dependencies
-        run: |
-          pip install requests gspread oauth2client beautifulsoup4 pytz
-
-      - name: Create JSON Key File
-        run: |
-          echo '${{ secrets.GCP_SA_JSON }}' > service_account.json
-
-      - name: Run script
-        run: python auto_record.py
+if __name__ == "__main__":
+    spots = get_realtime_spots()
+    update_google_sheet(spots)
