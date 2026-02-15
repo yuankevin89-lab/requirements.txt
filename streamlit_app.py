@@ -42,7 +42,7 @@ def init_connection():
 
 try:
     client = init_connection()
-    sheet = client.open("客服作業表").sheet1
+    sheet = client.open("客服作業表").worksheet("客服紀錄")
     conn_success = True
 except Exception as e:
     st.error(f"連線失敗: {e}")
