@@ -5,13 +5,12 @@ import datetime
 import pandas as pd
 import pytz
 import requests
-import re
 
 # --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 場站與人員清單 (維持最新版) ---
+# --- 2. 名單設定 (場站與人員清單) ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
     "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", 
@@ -30,7 +29,7 @@ STATION_LIST = [
 ]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
-# --- 3. 連線與數據抓取 (靜態 Regex 提取版) ---
+# --- 3. Google Sheets 與 Open Data 連線 ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -44,48 +43,30 @@ def init_connection():
         return None
 
 def auto_log_parking(sheet_cw):
-    """嘗試從網頁原始碼中提取車位數據"""
-    url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-    }
-    
+    """連線新北市政府 Open Data API 獲取碧華國小車位"""
+    # 碧華國小地下停車場的 ID 為 488 (新北開放資料編號)
+    api_url = "https://data.ntpc.gov.tw/api/datasets/02170387-9A39-4E61-9A6F-088825227702/json?size=2000"
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        resp.encoding = 'utf-8'
+        resp = requests.get(api_url, timeout=10)
+        data = resp.json()
         
-        # 尋找 HTML 中所有的 value="數字" 或標籤內的數字
-        # 鎖定碧華國小的特定車位欄位標籤
-        patterns = [
-            r'lblAvailableCar.*?>(.*?)</span>',
-            r'lblAvailableCar.*?value="(.*?)"',
-            r'可用車位.*?(\d+)'
-        ]
-        
+        # 尋找碧華國小 (名稱可能包含『碧華國小地下停車場』)
         spots = None
-        for p in patterns:
-            match = re.search(p, resp.text, re.DOTALL)
-            if match:
-                raw_val = match.group(1)
-                # 只保留數字
-                clean_val = "".join(re.findall(r'\d+', raw_val))
-                if clean_val:
-                    spots = clean_val
-                    break
+        for lot in data:
+            if "碧華國小" in lot.get('NAME', ''):
+                spots = lot.get('AVAILABLECAR', '')
+                break
         
-        if spots:
+        if spots is not None and str(spots).isdigit():
             now_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M")
             last_record = sheet_cw.get_all_values()
             if not last_record or last_record[-1][0] != now_str:
-                sheet_cw.append_row([now_str, spots])
-                return f"✅ 車位自動同步成功：{spots}"
+                sheet_cw.append_row([now_str, str(spots)])
+                return f"✅ 車位同步成功 (OpenData)：{spots}"
             return f"📊 目前碧華國小車位：{spots}"
-        
-        # 如果還是抓不到，印出網頁前 500 字到日誌以便除錯 (Manage app 可看)
-        print(f"DEBUG - 網頁內容片段: {resp.text[:500]}")
-        return "⚠️ 目前網頁無即時數據 (碧華國小)"
+        return "⚠️ API 數據中找不到碧華國小"
     except Exception as e:
-        return f"⚠️ 連線失敗: {str(e)[:15]}"
+        return f"⚠️ API 連線失敗"
 
 # --- 4. 初始化 ---
 client = init_connection()
@@ -98,7 +79,7 @@ else:
     st.error("試算表連線失敗")
     st.stop()
 
-# --- 5. 分頁 UI ---
+# --- 5. 分頁 UI (Tab 1-3) ---
 tab1, tab2, tab3 = st.tabs(["📝 案件登記", "📊 數據統計", "🚗 車位紀錄趨勢"])
 
 with tab1:
@@ -135,7 +116,7 @@ with tab1:
                 dt_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M:%S")
                 h_code = f"REC-{datetime.datetime.now().strftime('%m%d%H%M%S')}"
                 sheet_kf.append_row([dt_str, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name, h_code])
-                st.success("✅ 送出成功")
+                st.success("✅ 案件送出成功")
                 st.rerun()
 
     st.markdown("---")
@@ -162,5 +143,5 @@ with tab3:
     if len(cw_data) > 1:
         df_cw = pd.DataFrame(cw_data[1:], columns=["時間", "剩餘車位"])
         df_cw["剩餘車位"] = pd.to_numeric(df_cw["剩餘車位"], errors='coerce')
-        st.line_chart(df_cw.set_index("時間").tail(30))
+        st.line_chart(df_cw.set_index("時間").tail(50))
         st.dataframe(df_cw.iloc[::-1], use_container_width=True)
