@@ -30,7 +30,7 @@ STATION_LIST = [
 ]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
-# --- 3. 連線與數據抓取 (Session 強化版) ---
+# --- 3. 連線與數據抓取 (靜態 Regex 提取版) ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -44,36 +44,48 @@ def init_connection():
         return None
 
 def auto_log_parking(sheet_cw):
-    """使用 Session 模擬真實流程"""
-    base_url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
-    api_url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/RealtimeInfo.ashx?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
-    
+    """嘗試從網頁原始碼中提取車位數據"""
+    url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-        'Referer': base_url
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
     }
     
     try:
-        session = requests.Session()
-        # 第一步：獲取首頁 Cookie
-        session.get(base_url, headers=headers, timeout=10)
-        # 第二步：帶著 Cookie 請求數據
-        resp = session.get(api_url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.encoding = 'utf-8'
         
-        # 尋找數據中的數字
-        match = re.search(r'lblAvailableCar.*?(\d+)', resp.text)
+        # 尋找 HTML 中所有的 value="數字" 或標籤內的數字
+        # 鎖定碧華國小的特定車位欄位標籤
+        patterns = [
+            r'lblAvailableCar.*?>(.*?)</span>',
+            r'lblAvailableCar.*?value="(.*?)"',
+            r'可用車位.*?(\d+)'
+        ]
         
-        if match:
-            spots = match.group(1)
+        spots = None
+        for p in patterns:
+            match = re.search(p, resp.text, re.DOTALL)
+            if match:
+                raw_val = match.group(1)
+                # 只保留數字
+                clean_val = "".join(re.findall(r'\d+', raw_val))
+                if clean_val:
+                    spots = clean_val
+                    break
+        
+        if spots:
             now_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M")
             last_record = sheet_cw.get_all_values()
             if not last_record or last_record[-1][0] != now_str:
                 sheet_cw.append_row([now_str, spots])
                 return f"✅ 車位自動同步成功：{spots}"
             return f"📊 目前碧華國小車位：{spots}"
-        return "⚠️ 政府網站目前無回傳數字 (可能已滿位或鎖定)"
-    except:
-        return "⚠️ 車位數據抓取超時"
+        
+        # 如果還是抓不到，印出網頁前 500 字到日誌以便除錯 (Manage app 可看)
+        print(f"DEBUG - 網頁內容片段: {resp.text[:500]}")
+        return "⚠️ 目前網頁無即時數據 (碧華國小)"
+    except Exception as e:
+        return f"⚠️ 連線失敗: {str(e)[:15]}"
 
 # --- 4. 初始化 ---
 client = init_connection()
