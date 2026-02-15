@@ -6,12 +6,13 @@ import pandas as pd
 import pytz
 import requests
 from bs4 import BeautifulSoup
+import re
 
 # --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 場站與人員清單 (維持您的最新清單) ---
+# --- 2. 名單設定 (場站清單與填單人) ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", 
     "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
@@ -33,7 +34,7 @@ STATION_LIST = [
 
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
-# --- 3. Google Sheets 連線與車位抓取邏輯 ---
+# --- 3. Google Sheets 連線與車位抓取函式 ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -49,43 +50,50 @@ def init_connection():
         return None
 
 def auto_log_parking(sheet_cw):
-    """抓取碧華國小即時車位並寫入『車位紀錄』分頁"""
+    """強化版抓取邏輯：抓取碧華國小即時車位"""
     url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
     try:
-        resp = requests.get(url, headers=headers, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=15)
         resp.encoding = 'utf-8'
         soup = BeautifulSoup(resp.text, 'html.parser')
-        spots = soup.find("span", {"id": "ContentPlaceHolder1_lblAvailableCar"}).text.strip()
+        
+        # 多重搜尋策略
+        element = soup.find("span", {"id": "ContentPlaceHolder1_lblAvailableCar"})
+        spots_text = element.text.strip() if element else ""
+        
+        # 只提取數字
+        spots = "".join(re.findall(r'\d+', spots_text))
         
         if spots.isdigit():
             now_str = datetime.datetime.now(tw_timezone).strftime("%Y-%m-%d %H:%M")
-            # 取得最後一筆，避免極短時間內重複寫入
+            # 防止一分鐘內重複寫入
             last_record = sheet_cw.get_all_values()
             if not last_record or last_record[-1][0] != now_str:
                 sheet_cw.append_row([now_str, spots])
                 return f"✅ 車位自動同步成功：{spots}"
-        return f"📊 目前碧華國小車位：{spots}"
-    except:
-        return "⚠️ 車位數據目前無法取得"
+            return f"📊 目前碧華國小車位：{spots}"
+        return "⚠️ 目前無法解析車位數字"
+    except Exception as e:
+        return f"⚠️ 車位抓取錯誤"
 
-# 初始化連線
+# --- 4. 初始化系統 ---
 client = init_connection()
 if client:
     sheet_kf = client.open("客服作業表").worksheet("客服紀錄")
     sheet_cw = client.open("客服作業表").worksheet("車位紀錄")
-    # 網頁一啟動即執行車位抓取
+    # 開啟網頁即觸發抓取
     parking_msg = auto_log_parking(sheet_cw)
 else:
     st.stop()
 
-# --- 4. 分頁邏輯 ---
-tab1, tab2, tab3 = st.tabs(["📝 案件登記", "📊 數據統計", "🚗 車位監測趨勢"])
+# --- 5. 分頁設定 ---
+tab1, tab2, tab3 = st.tabs(["📝 案件登記", "📊 數據統計", "🚗 車位紀錄趨勢"])
 
 # --- Tab 1: 案件登記 ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
-    st.info(parking_msg) # 顯示車位同步狀態
+    st.info(parking_msg) # 顯示車位抓取結果
     
     now_obj = datetime.datetime.now(tw_timezone)
     dt_str = now_obj.strftime("%Y-%m-%d %H:%M:%S")
@@ -94,7 +102,7 @@ with tab1:
         st.write(f"🕒 登記時間：{dt_str}")
         col1, col2 = st.columns(2)
         with col1:
-            station_name = st.selectbox("場站名稱", options=STATION_LIST)
+            station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
             caller_name = st.text_input("姓名 (來電人)")
         with col2:
             user_name = st.selectbox("填單人 (員工姓名)", options=STAFF_LIST)
@@ -108,6 +116,7 @@ with tab1:
         
         description = st.text_area("描述 (詳細過程)", height=150)
         
+        # 按鈕群組
         btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 2]) 
         with btn_col1:
             submit = st.form_submit_button("確認送出")
@@ -119,55 +128,63 @@ with tab1:
         if submit:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋" and description:
                 try:
-                    row_to_add = [dt_str, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
+                    # 隱藏編碼生成
+                    h_code = f"REC-{datetime.datetime.now().strftime('%m%d%H%M%S')}"
+                    row_to_add = [dt_str, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name, h_code]
                     sheet_kf.append_row(row_to_add)
                     st.success("✅ 資料已成功上傳！")
                     st.rerun()
                 except Exception as e:
                     st.error(f"上傳錯誤：{e}")
             else:
-                st.warning("⚠️ 請填寫必填欄位。")
+                st.warning("⚠️ 請填寫必填欄位 (填單人、場站及描述)。")
 
-    # --- 🔍 查詢區塊 ---
+    # --- 🔍 全方位關鍵字查詢區塊 ---
     st.markdown("---")
-    search_query = st.text_input("🔍 搜尋歷史紀錄 (車號、電話、描述...)", placeholder="輸入關鍵字...")
-    if search_query:
-        raw_kf = sheet_kf.get_all_values()
+    st.subheader("🔍 歷史紀錄查詢")
+    search_q = st.text_input("輸入關鍵字 (車號、姓名、電話或內容)")
+    
+    raw_kf = sheet_kf.get_all_values()
+    if len(raw_kf) > 1:
         df_kf = pd.DataFrame(raw_kf[1:], columns=raw_kf[0])
-        mask = df_kf.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
-        st.dataframe(df_kf[mask].iloc[::-1], use_container_width=True)
-    else:
-        # 預設顯示最近3筆
-        raw_kf = sheet_kf.get_all_values()
-        if len(raw_kf) > 1:
+        if search_q:
+            mask = df_kf.apply(lambda row: row.astype(str).str.contains(search_q, case=False).any(), axis=1)
+            st.dataframe(df_kf[mask].iloc[::-1], use_container_width=True)
+        else:
             st.write("🕒 最近 3 筆登記：")
-            st.table(pd.DataFrame(raw_kf[-3:], columns=raw_kf[0]).iloc[::-1])
+            st.table(df_kf.tail(3).iloc[::-1])
 
 # --- Tab 2: 數據統計 ---
 with tab2:
-    if st.text_input("管理密碼", type="password") == "kevin198":
-        raw_data = sheet_kf.get_all_values()
-        if len(raw_data) > 1:
-            df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-            st.subheader("處理人員工作量排行")
-            st.bar_chart(df_stat['填單人 (員工姓名)'].value_counts())
-            st.subheader("完整紀錄明細")
-            st.dataframe(df_stat, use_container_width=True)
+    st.title("📊 數據統計")
+    if st.text_input("管理員密碼", type="password") == "kevin198":
+        if len(raw_kf) > 1:
+            st.subheader("今日各類別來電佔比")
+            df_kf['日期'] = pd.to_datetime(df_kf['日期/時間']).dt.date
+            today = datetime.datetime.now(tw_timezone).date()
+            today_data = df_kf[df_kf['日期'] == today]
+            if not today_data.empty:
+                st.bar_chart(today_data['來電類別'].value_counts())
+            
+            st.subheader("人員處理工作量")
+            st.bar_chart(df_kf['填單人 (員工姓名)'].value_counts())
+            st.subheader("完整紀錄清單")
+            st.dataframe(df_kf, use_container_width=True)
 
-# --- Tab 3: 車位監測趨勢 (2/15 新增) ---
+# --- Tab 3: 車位紀錄趨勢 ---
 with tab3:
-    st.header("🚗 碧華國小車位歷史紀錄")
-    cw_raw = sheet_cw.get_all_values()
-    if len(cw_raw) > 1:
-        df_cw = pd.DataFrame(cw_raw[1:], columns=["時間", "剩餘車位"])
+    st.header("🚗 碧華國小車位監測趨勢")
+    cw_data = sheet_cw.get_all_values()
+    if len(cw_data) > 1:
+        df_cw = pd.DataFrame(cw_data[1:], columns=["時間", "剩餘車位"])
         df_cw["剩餘車位"] = pd.to_numeric(df_cw["剩餘車位"], errors='coerce')
         
-        # 顯示最近 24 筆的折線圖
-        st.line_chart(df_cw.set_index("時間").tail(24))
+        # 繪製線圖
+        st.line_chart(df_cw.set_index("時間").tail(30))
         
-        st.subheader("詳細紀錄表")
+        st.subheader("歷史明細")
         st.dataframe(df_cw.iloc[::-1], use_container_width=True)
     else:
-        st.info("尚無車位紀錄數據。")
+        st.info("尚無車位紀錄資料。")
 
-st.caption("© 2026 應安客服系統 - 碧華國小車位監測已整合")
+st.caption("© 2026 應安客服系統 - 2/15 終極整合修正版")
