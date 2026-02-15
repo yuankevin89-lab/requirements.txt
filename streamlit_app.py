@@ -9,7 +9,7 @@ import pytz
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 名單與連線 ---
+# --- 2. 資料清單設定 ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
     "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", 
@@ -28,6 +28,7 @@ STATION_LIST = [
 ]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
+# --- 3. 初始化 Google Sheets 連線 ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -36,7 +37,8 @@ def init_connection():
         else:
             creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
         return gspread.authorize(creds)
-    except: return None
+    except:
+        return None
 
 client = init_connection()
 if client:
@@ -47,7 +49,7 @@ else:
     st.error("試算表連線失敗")
     st.stop()
 
-# --- 3. UI 分頁 ---
+# --- 4. UI 分頁 ---
 tab1, tab2, tab3 = st.tabs(["📝 案件登記", "📊 數據統計", "🚗 車位趨勢"])
 
 with tab1:
@@ -79,25 +81,27 @@ with tab1:
         
         c1, c2, c3, c4 = st.columns([1, 1, 1, 2])
         with c1:
-            if st.form_submit_button("確認送出"):
+            submit_btn = st.form_submit_button("確認送出")
+            if submit_btn:
                 if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
                     h_code = f"REC-{datetime.datetime.now().strftime('%m%d%H%M%S')}"
                     sheet_kf.append_row([now_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name, h_code])
                     st.toast("✅ 資料已成功送出！")
                     st.rerun()
                 else:
-                    st.error("⚠️ 請填寫必填項 (填單人與場站)")
-        with b2 := c2: st.link_button("多元支付", "http://219.85.163.90:5010/")
-        with b3 := c3: st.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
+                    st.error("⚠️ 請選擇填單人與場站名稱")
+        with c2:
+            st.link_button("多元支付", "http://219.85.163.90:5010/")
+        with c3:
+            st.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
-    # --- 查詢區域 (已隱藏預設顯示) ---
+    # --- 查詢區域 (預設隱藏，僅搜尋時顯示) ---
     st.markdown("---")
     search_q = st.text_input("🔍 關鍵字查詢 (輸入車號、姓名或電話搜尋紀錄)")
     
     raw_kf = sheet_kf.get_all_values()
     if len(raw_kf) > 1:
         df_kf = pd.DataFrame(raw_kf[1:], columns=raw_kf[0])
-        # 僅在有輸入關鍵字時顯示搜尋結果表格
         if search_q:
             mask = df_kf.apply(lambda row: row.astype(str).str.contains(search_q, case=False).any(), axis=1)
             search_result = df_kf[mask]
@@ -121,4 +125,4 @@ with tab3:
         st.line_chart(df_cw.set_index("時間").tail(100))
         st.dataframe(df_cw.iloc[::-1], use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 2/15 簡潔版")
+st.caption("© 2026 應安客服系統 - 穩定隱藏版")
