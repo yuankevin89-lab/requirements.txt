@@ -11,7 +11,7 @@ import re
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 場站與人員清單 (維持原樣) ---
+# --- 2. 場站與人員清單 (維持最新版) ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
     "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", 
@@ -28,10 +28,9 @@ STATION_LIST = [
     "台南北門場", "台南永福", "台南國華", "台南民權", "善化", "仁德", "台南中華場", "致穩", "台南康樂場", 
     "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場", "其他(未登入場站)" 
 ]
-
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
-# --- 3. 連線與 API 數據抓取 ---
+# --- 3. 連線與數據抓取 (Session 強化版) ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -40,19 +39,28 @@ def init_connection():
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         else:
             creds = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
-        client = gspread.authorize(creds)
-        return client
+        return gspread.authorize(creds)
     except:
         return None
 
 def auto_log_parking(sheet_cw):
-    """直接連線新北停車 API 接口"""
+    """使用 Session 模擬真實流程"""
+    base_url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
     api_url = "https://www.parkinginfo.ntpc.gov.tw/parkingrealInfo/RealtimeInfo.ashx?parkinglotname=%E7%A2%A7%E8%8F%AF%E5%9C%8B%E5%B0%8F"
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Referer': base_url
+    }
+    
     try:
-        # 直接請求 API
-        resp = requests.get(api_url, headers=headers, timeout=10)
-        # 由於 API 回傳可能是 HTML 片段或純文字，我們用正規表達式提取 lblAvailableCar 附近的數字
+        session = requests.Session()
+        # 第一步：獲取首頁 Cookie
+        session.get(base_url, headers=headers, timeout=10)
+        # 第二步：帶著 Cookie 請求數據
+        resp = session.get(api_url, headers=headers, timeout=10)
+        
+        # 尋找數據中的數字
         match = re.search(r'lblAvailableCar.*?(\d+)', resp.text)
         
         if match:
@@ -63,15 +71,16 @@ def auto_log_parking(sheet_cw):
                 sheet_cw.append_row([now_str, spots])
                 return f"✅ 車位自動同步成功：{spots}"
             return f"📊 目前碧華國小車位：{spots}"
-        return "⚠️ 政府伺服器回傳空數據"
+        return "⚠️ 政府網站目前無回傳數字 (可能已滿位或鎖定)"
     except:
-        return "⚠️ 車位連線逾時"
+        return "⚠️ 車位數據抓取超時"
 
 # --- 4. 初始化 ---
 client = init_connection()
 if client:
-    sheet_kf = client.open("客服作業表").worksheet("客服紀錄")
-    sheet_cw = client.open("客服作業表").worksheet("車位紀錄")
+    spreadsheet = client.open("客服作業表")
+    sheet_kf = spreadsheet.worksheet("客服紀錄")
+    sheet_cw = spreadsheet.worksheet("車位紀錄")
     parking_msg = auto_log_parking(sheet_cw)
 else:
     st.error("試算表連線失敗")
