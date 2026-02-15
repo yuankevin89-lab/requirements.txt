@@ -92,27 +92,34 @@ with tab1:
                 else:
                     st.warning("⚠️ 請完整填寫必填欄位 (填單人、場站及描述)。")
 
+        # --- 🔍 全方位關鍵字查詢區塊 (修正處) ---
         st.markdown("---")
-        st.subheader("🔍 車號歷史紀錄查詢")
-        search_car = st.text_input("輸入車牌號碼進行搜尋", placeholder="例如: ABC-1234")
+        st.subheader("🔍 歷史紀錄快速查詢")
+        search_query = st.text_input("輸入關鍵字進行搜尋", placeholder="可輸入車號、姓名、電話或描述內容...")
         
-        if search_car:
+        if search_query:
             try:
                 raw_data = sheet.get_all_values()
                 if len(raw_data) > 1:
                     df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                    result_df = df[df['車號'].str.contains(search_car, case=False, na=False)]
+                    
+                    # 修正邏輯：在「所有欄位」中搜尋該關鍵字
+                    # 將整行合併成字串來搜尋，不分大小寫
+                    mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
+                    result_df = df[mask]
+                    
                     if not result_df.empty:
+                        st.write(f"找到 {len(result_df)} 筆與 **{search_query}** 相關的紀錄：")
                         display_df = result_df.iloc[::-1]
                         table_html = display_df.to_html(index=False, justify='left', classes='table')
                         st.markdown("<style>table { width: 100%; border-collapse: collapse; } th { background-color: #f0f2f6; text-align: left; padding: 10px; } td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; word-wrap: break-word; }</style>", unsafe_allow_html=True)
                         st.write(table_html, unsafe_allow_html=True)
                     else:
-                        st.info(f"查無車號 **{search_car}** 的紀錄。")
+                        st.info(f"查無包含 **{search_query}** 的紀錄。")
             except Exception as e:
                 st.error(f"查詢出錯：{e}")
 
-# --- Tab 2: 數據統計 (完整修復版) ---
+# --- Tab 2: 數據統計 (維持最新版) ---
 with tab2:
     st.title("📊 數據統計")
     PASSWORD = "kevin198"
@@ -126,8 +133,6 @@ with tab2:
                         raw_data = sheet.get_all_values()
                         if len(raw_data) > 1:
                             df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                            
-                            # 格式相容處理
                             df_stat['日期/時間'] = pd.to_datetime(df_stat['日期/時間'], format='mixed').dt.date
                             today = datetime.datetime.now(tw_timezone).date()
                             today_df = df_stat[df_stat['日期/時間'] == today]
@@ -140,13 +145,10 @@ with tab2:
                                 st.subheader("今日各場站來電分佈")
                                 station_counts = today_df.iloc[:, 1].value_counts()
                                 st.bar_chart(station_counts)
-                                
                                 st.subheader("今日明細資料")
                                 st.dataframe(today_df, use_container_width=True)
                             else:
                                 st.info("今日尚無登記資料。")
-                        else:
-                            st.info("資料庫目前為空。")
                 except Exception as e:
                     st.error(f"統計分析失敗：{e}")
     elif pw != "":
