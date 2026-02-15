@@ -28,7 +28,6 @@ STATION_LIST = [
     "致穩", "台南康樂場", "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場"
 ]
 
-# 填單人名單
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
 # --- 3. Google Sheets 連線 ---
@@ -63,16 +62,13 @@ with tab1:
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
                 caller_name = st.text_input("姓名 (來電人)")
             with col2:
-                # 修正處：將文字輸入改為下拉選單
                 user_name = st.selectbox("填單人 (員工姓名)", options=STAFF_LIST)
                 caller_phone = st.text_input("電話")
-            
             col3, col4 = st.columns(2)
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
                 car_num = st.text_input("車號")
-            
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
@@ -84,7 +80,6 @@ with tab1:
                 st.link_button("簡訊", "https://umc.fetnet.net/#/menu/login")
 
             if submit:
-                # 驗證時也需排除預設選項
                 if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋" and description:
                     try:
                         with st.spinner('正在上傳...'):
@@ -95,9 +90,8 @@ with tab1:
                     except Exception as e:
                         st.error(f"上傳錯誤：{e}")
                 else:
-                    st.warning("⚠️ 欄位未填寫完全！請選擇填單人、場站並填寫描述。")
+                    st.warning("⚠️ 請完整填寫必填欄位 (填單人、場站及描述)。")
 
-        # --- 下方車號查詢功能 (維持最新版) ---
         st.markdown("---")
         st.subheader("🔍 車號歷史紀錄查詢")
         search_car = st.text_input("輸入車牌號碼進行搜尋", placeholder="例如: ABC-1234")
@@ -118,6 +112,42 @@ with tab1:
             except Exception as e:
                 st.error(f"查詢出錯：{e}")
 
-# --- Tab 2: 數據統計 (維持最新版) ---
+# --- Tab 2: 數據統計 (完整修復版) ---
 with tab2:
-    # ... (代碼與之前修復版一致)
+    st.title("📊 數據統計")
+    PASSWORD = "kevin198"
+    pw = st.text_input("管理員密碼", type="password")
+    
+    if pw == PASSWORD:
+        if conn_success:
+            if st.button("🔄 刷新統計數據"):
+                try:
+                    with st.spinner('正在計算今日統計...'):
+                        raw_data = sheet.get_all_values()
+                        if len(raw_data) > 1:
+                            df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+                            
+                            # 格式相容處理
+                            df_stat['日期/時間'] = pd.to_datetime(df_stat['日期/時間'], format='mixed').dt.date
+                            today = datetime.datetime.now(tw_timezone).date()
+                            today_df = df_stat[df_stat['日期/時間'] == today]
+
+                            m1, m2 = st.columns(2)
+                            m1.metric("今日總來電數", len(today_df))
+                            m2.metric("歷史累積總數", len(df_stat))
+
+                            if not today_df.empty:
+                                st.subheader("今日各場站來電分佈")
+                                station_counts = today_df.iloc[:, 1].value_counts()
+                                st.bar_chart(station_counts)
+                                
+                                st.subheader("今日明細資料")
+                                st.dataframe(today_df, use_container_width=True)
+                            else:
+                                st.info("今日尚無登記資料。")
+                        else:
+                            st.info("資料庫目前為空。")
+                except Exception as e:
+                    st.error(f"統計分析失敗：{e}")
+    elif pw != "":
+        st.error("🔒 密碼不正確")
