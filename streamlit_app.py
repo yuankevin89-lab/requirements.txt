@@ -125,4 +125,4 @@ with tab3:
         st.line_chart(df_cw.set_index("時間").tail(100))
         st.dataframe(df_cw.iloc[::-1], use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 穩定隱藏版")
+st.caption("© 2026 應安客服系統 ")
