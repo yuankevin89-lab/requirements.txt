@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 
-# --- 1. 頁面基本設定與樣式精確化 ---
+# --- 1. 頁面基本設定與樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
 hide_st_style = """
@@ -17,7 +17,7 @@ hide_st_style = """
             .stAppDeployButton {display: none;}
             .block-container {padding-top: 2rem; padding-bottom: 1rem;}
             
-            /* 精確修正：僅針對歷史紀錄中「被勾選的該列」進行變色 */
+            /* 精確標記變色：僅限勾選的單一 Container，解決全屏變綠問題 */
             [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
                 background-color: #e8f5e9 !important;
                 border-radius: 8px;
@@ -26,7 +26,7 @@ hide_st_style = """
                 border: 1px solid #c8e6c9;
             }
             
-            /* 強制表格文字換行優化 */
+            /* 優化文字換行 */
             .stText, p, div { word-wrap: break-word; }
             </style>
             """
@@ -38,6 +38,7 @@ tw_timezone = pytz.timezone('Asia/Taipei')
 STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", "統領場", "信義安和", "僑信場", "台北民生", "美麗華場", "基湖場", "北安場", "龍江場", "農安場", "民權西場", "承德場", "承德三", "大龍場", "延平北場", "雙連", "中山機車", "中山場", "南昌", "博愛", "金山", "金華", "詔安", "通化", "杭南一", "復興南", "逸仙", "興岩", "木柵", "泉州", "汀洲", "福州", "北平東", "水源", "重慶南", "西寧市場", "西園國宅", "復興北", "宏泰民生", "福善一", "石牌二", "中央北", "紅毛城", "三玉", "士林", "永平", "大龍峒社宅", "昆陽一", "洲子場", "環山", "文湖場", "民善場", "新明場", "德明研推", "東湖場", "舊宗社宅", "秀山機車", "景平", "環狀A", "土城中華場", "板橋光正", "合宜場", "土城裕民", "中央二", "中央三", "板橋文化", "同安", "佳音竹林", "青潭國小", "林口文化", "秀峰場", "興南場", "中和莊敬", "三重永福", "徐匯場", "蘆洲保和場", "蘆洲三民", "榮華場", "富貴場", "鄉長二", "汐止忠孝", "新台五路", "蘆竹場", "龜山興富", "竹東長春", "竹南中山", "銅鑼停一", "台中黎明", "後龍", "台中復興", "文心場", "大和屋一場", "大和屋二場", "北港場", "西螺", "虎尾", "民德", "衛民場", "衛民二場", "台南北門場", "台南永福", "台南國華", "台南民權", "善化", "仁德", "台南中華場", "致穩", "台南康樂場", "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場", "其他(未登入場站)"]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
+# --- 3. Google Sheets 連線 ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -49,12 +50,13 @@ def init_connection():
 client = init_connection()
 sheet = client.open("客服作業表").sheet1 if client else None
 
+# --- 4. 初始化 Session State ---
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
 
+# --- 5. UI 分頁 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記與歷史搜尋 ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -92,7 +94,6 @@ with tab1:
                     st.session_state.edit_mode = False
                 else: sheet.append_row(row)
                 st.rerun()
-        
         btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
@@ -100,7 +101,7 @@ with tab1:
         st.session_state.edit_mode = False
         st.rerun()
 
-    # --- 歷史紀錄 (整合最後3筆與搜尋功能) ---
+    # --- 歷史紀錄 (包含自動交班動態邏輯) ---
     st.markdown("---")
     st.subheader("🔍 歷史紀錄與交班動態")
     if sheet:
@@ -109,15 +110,25 @@ with tab1:
             rows = data[1:]
             search = st.text_input("🔍 搜尋歷史紀錄 (車號、場站、填單人)")
             
-            # 判斷顯示邏輯：搜尋中顯示結果，否則顯示 8 小時內或最後 3 筆
-            eight_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
+            eight_hours_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display = []
+            
             if search:
+                # 搜尋模式：顯示所有符合結果
                 display = [(i+2, r) for i, r in enumerate(rows) if any(search.lower() in str(x).lower() for x in r)]
             else:
-                # 預設顯示最近 3 筆
-                last_three = list(enumerate(rows))[-3:]
-                display = [(i+2, r) for i, r in last_three]
+                # 交班模式：顯示 8 小時內動態
+                for i, r in enumerate(rows):
+                    try:
+                        dt = pd.to_datetime(r[0]).replace(tzinfo=None)
+                        if dt >= eight_hours_ago:
+                            display.append((i+2, r))
+                    except: continue
+                
+                # 保底邏輯：若 8 小時內沒資料，顯示最後 3 筆
+                if not display:
+                    last_three = list(enumerate(rows))[-3:]
+                    display = [(i+2, r) for i, r in last_three]
 
             if display:
                 cols = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
@@ -128,26 +139,22 @@ with tab1:
                 for r_idx, r_val in reversed(display):
                     with st.container():
                         c = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
-                        c[0].write(r_val[0])
-                        c[1].write(r_val[1])
-                        c[2].write(r_val[4])
-                        c[3].write(f"{r_val[6][:25]}...")
-                        c[4].write(r_val[7])
+                        c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[4])
+                        c[3].write(f"{r_val[6][:25]}..."); c[4].write(r_val[7])
                         if c[5].button("📝", key=f"btn_{r_idx}"):
                             st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                             st.rerun()
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計分析 (自動週報與精準偵測) ---
+# --- 📊 Tab 2: 數據統計分析 ---
 with tab2:
-    st.title("📊 數據統計分析 (週報)")
+    st.title("📊 數據統計與分析 (自動週報)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             all_raw = sheet.get_all_values()
             if len(all_raw) > 1:
                 full_df = pd.DataFrame(all_raw[1:], columns=all_raw[0])
-                # 確保時間欄位正確轉換
                 full_df[full_df.columns[0]] = pd.to_datetime(full_df[full_df.columns[0]], errors='coerce')
                 full_df = full_df.dropna(subset=[full_df.columns[0]])
 
@@ -159,14 +166,13 @@ with tab2:
                 mask = (full_df[full_df.columns[0]].dt.date >= last_monday) & (full_df[full_df.columns[0]].dt.date <= last_sunday)
                 df = full_df.loc[mask].copy()
 
-                st.success(f"📅 **統計週期：{last_monday} (一) ~ {last_sunday} (日)**")
+                st.success(f"📅 **本週統計週期：{last_monday} (一) ~ {last_sunday} (日)**")
                 
                 if not df.empty:
                     st.markdown("---")
                     g1, g2 = st.columns(2)
                     with g1:
                         st.subheader("📂 類別佔比")
-                        # 標題模糊偵測法，確保欄位對應正確
                         cat_col = next((c for c in df.columns if "類別" in c), df.columns[5])
                         fig1 = px.pie(df, names=cat_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                         st.plotly_chart(fig1, use_container_width=True)
@@ -176,9 +182,9 @@ with tab2:
                         fig2 = px.pie(df, names=st_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(fig2, use_container_width=True)
                     
-                    st.write("📋 **當週資料明細**")
+                    st.write("📋 **當週資料明細 (依時間倒序)**")
                     st.dataframe(df.sort_values(by=df.columns[0], ascending=False), use_container_width=True)
                 else:
                     st.warning("⚠️ 此週期內尚無登記資料。")
 
-st.caption("© 2026 應安客服系統 - 2/16 整合變色優化版")
+st.caption("© 2026 應安客服系統 - 2/16 完整整合基準版")
