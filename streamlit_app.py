@@ -5,8 +5,22 @@ import datetime
 import pandas as pd
 import pytz
 
-# --- 1. 頁面基本設定 ---
+# --- 1. 頁面基本設定與樣式淨化 ---
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
+
+# 隱藏右上角選單、GitHub 圖示、Deploy 按鈕及底部字樣
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            .stAppDeployButton {display: none;}
+            /* 調整間距讓畫面更緊湊 */
+            .block-container {padding-top: 2rem; padding-bottom: 1rem;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- 2. 資料清單設定 ---
@@ -31,24 +45,25 @@ if client:
 else:
     conn_success = False
 
-# --- 4. 初始化 Session State (編輯狀態) ---
+# --- 4. 初始化 Session State (編輯狀態管理) ---
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode = False
     st.session_state.edit_row_idx = None
-    st.session_state.edit_data = [] # 儲存原始 Row 列表
+    st.session_state.edit_data = [""] * 8 # 儲存原本一整列的資料
 
-# --- 5. UI 分頁 ---
+# --- 5. UI 邏輯 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
     
+    # 編輯模式提示
     if st.session_state.edit_mode:
-        st.warning(f"⚠️ 模式：編輯紀錄 (第 {st.session_state.edit_row_idx} 行)")
+        st.warning(f"⚠️ 目前為【編輯模式】- 正在修改第 {st.session_state.edit_row_idx} 列紀錄")
 
     with st.form("my_form", clear_on_submit=True):
-        # 讀取原本的資料 (依位置：0日期, 1場站, 2姓名, 3電話, 4車號, 5類別, 6描述, 7填單人)
+        # 依位置索引取得資料：0日期, 1場站, 2姓名, 3電話, 4車號, 5類別, 6描述, 7填單人
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M:%S")
         
@@ -84,33 +99,34 @@ with tab1:
                 row_content = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 try:
                     if st.session_state.edit_mode:
+                        # 定位到試算表原始行號進行覆寫
                         sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row_content])
-                        st.success("✅ 更新成功！")
+                        st.success("✅ 紀錄已成功更新！")
                         st.session_state.edit_mode = False
+                        st.session_state.edit_data = [""] * 8
                     else:
                         sheet.append_row(row_content)
-                        st.success("✅ 送出成功！")
+                        st.success("✅ 資料已成功送出！")
                     st.rerun()
                 except Exception as e:
                     st.error(f"操作失敗：{e}")
+            else:
+                st.warning("⚠️ 請填寫必填欄位 (填單人與場站)")
 
     if st.session_state.edit_mode:
-        if st.button("❌ 取消編輯"):
+        if st.button("❌ 取消編輯 (返回新增模式)"):
             st.session_state.edit_mode = False
             st.rerun()
 
-    # --- 🔍 歷史紀錄與交班動態 (採用位置讀取防錯) ---
+    # --- 🔍 歷史紀錄與交班動態 ---
     st.markdown("---")
     st.subheader("🔍 歷史紀錄與交班動態")
     
     try:
         data = sheet.get_all_values()
         if len(data) > 1:
-            header = data[0]
-            rows = data[1:]
-            
-            # 使用列表處理比對時間 (第 0 欄)
-            search_query = st.text_input("🔍 查詢紀錄", placeholder="搜尋關鍵字...")
+            rows = data[1:] # 跳過標題列
+            search_query = st.text_input("🔍 關鍵字搜尋 (車號、姓名、描述)", placeholder="留空顯示 8 小時動態")
             
             display_list = []
             now_naive = now_ts.replace(tzinfo=None)
@@ -120,7 +136,6 @@ with tab1:
                 row_num = i + 2 # 試算表實際行號
                 dt_val = pd.to_datetime(r[0], format='mixed', errors='coerce').replace(tzinfo=None)
                 
-                # 關鍵字過濾或 8 小時過濾
                 if search_query:
                     if any(search_query.lower() in str(cell).lower() for cell in r):
                         display_list.append((row_num, r))
@@ -135,17 +150,29 @@ with tab1:
                         with c1: st.write(f"📅 {r_data[0]}")
                         with c2: st.write(f"🏢 {r_data[1]}")
                         with c3: st.write(f"🚗 {r_data[4]}")
-                        with c4: st.write(f"📝 {str(r_data[6])[:40]}...")
+                        with c4: st.write(f"📝 {str(r_data[6])[:40]}...") # 顯示前40字
                         with c5:
-                            if st.button("📝 編輯", key=f"edit_{r_num}"):
+                            if st.button("📝 編輯", key=f"edit_btn_{r_num}"):
                                 st.session_state.edit_mode = True
                                 st.session_state.edit_row_idx = r_num
                                 st.session_state.edit_data = r_data
                                 st.rerun()
                         st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
             else:
-                st.info("查無符合的紀錄。")
+                st.info("目前無 8 小時內紀錄，或查無關鍵字。")
     except Exception as e:
-        st.error(f"讀取失敗：{e}")
+        st.error(f"資料讀取失敗，請檢查網路連線。({e})")
 
-# (Tab 2 數據統計部分)
+# --- Tab 2: 數據統計 ---
+with tab2:
+    st.title("📊 數據統計")
+    if st.text_input("管理員密碼", type="password") == "kevin198":
+        if conn_success:
+            raw_data = sheet.get_all_values()
+            if len(raw_data) > 1:
+                df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+                st.metric("總登記件數", len(df_stat))
+                st.bar_chart(df_stat.iloc[:, 7].value_counts()) # 使用索引讀取填單人欄位
+                st.dataframe(df_stat.iloc[::-1], use_container_width=True)
+
+st.caption("© 2026 應安客服系統 - 2/16 終極淨化基準版")
