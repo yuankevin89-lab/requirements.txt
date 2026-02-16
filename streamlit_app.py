@@ -62,6 +62,7 @@ if "edit_mode" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
+# --- Tab 1: 案件登記 ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -113,13 +114,12 @@ with tab1:
             else:
                 st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (精確搜尋 + 8小時輪動) ---
+    # --- 最近紀錄 ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
-            # 建立有效資料清單，排除空白列並記錄行索引
             valid_rows = []
             for i, r in enumerate(all_raw[1:]):
                 if any(str(c).strip() for c in r):
@@ -131,7 +131,6 @@ with tab1:
             display_list = []
             
             if search_q:
-                # 只有當欄位內容「真正」包含關鍵字時才加入，排除空格誤判
                 for idx, r in valid_rows:
                     if any(search_q in str(cell).lower().strip() for cell in r if str(cell).strip()):
                         display_list.append((idx, r))
@@ -162,14 +161,13 @@ with tab1:
                             st.rerun()
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
-            else:
-                st.info("查無符合資料")
 
-# --- Tab 2: 數據統計 (已修正 NameError) ---
+# --- Tab 2: 數據統計 (新增自定義週期功能) ---
 with tab2:
-    st.title("📊 數據統計與分析 (自動週報)")
+    st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
+            # 獲取資料
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
             if len(raw_stat) > 1:
                 hdr = raw_stat[0]
@@ -177,14 +175,27 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                today = datetime.datetime.now(tw_timezone).date()
-                mon = today - datetime.timedelta(days=today.weekday() + 7)
-                sun = mon + datetime.timedelta(days=6) # 修正: 原本是 Mon+6
+                # --- [新增] 指定日期區間功能 ---
+                st.info("💡 預設顯示「上週」統計，如需特定區間請在下方選取。")
+                custom_range = st.date_input("📅 選擇指定統計週期", value=[], help="選取開始與結束日期後，系統將自動更新報表。")
                 
-                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= mon) & (df_s[hdr[0]].dt.date <= sun)]
+                # 判定日期邏輯
+                if len(custom_range) == 2:
+                    # 使用者指定的區間
+                    start_date, end_date = custom_range
+                    st.success(f"📌 目前顯示自選區間：{start_date} ~ {end_date}")
+                else:
+                    # 預設邏輯：上週一至上週日
+                    today = datetime.datetime.now(tw_timezone).date()
+                    start_date = today - datetime.timedelta(days=today.weekday() + 7)
+                    end_date = start_date + datetime.timedelta(days=6)
+                    st.info(f"📅 目前顯示預設區間 (上週)：{start_date} ~ {end_date}")
+                
+                # 執行資料過濾
+                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= start_date) & (df_s[hdr[0]].dt.date <= end_date)]
 
                 if not wk_df.empty:
-                    st.success(f"📅 統計週期：{mon} ~ {sun}")
+                    st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
                         fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別佔比分析", hole=0.4)
@@ -194,6 +205,10 @@ with tab2:
                         fig2 = px.pie(wk_df, names=hdr[1], title="🏢 場站佔比分析", hole=0.4)
                         fig2.update_traces(textinfo='label+percent', textposition='outside')
                         st.plotly_chart(fig2, use_container_width=True)
-                else: st.info("本週期內尚無資料。")
+                    
+                    # 額外統計：區間總件數
+                    st.metric("總案件數", f"{len(wk_df)} 件")
+                else: 
+                    st.warning(f"⚠️ 在 {start_date} 至 {end_date} 期間內查無任何報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/16 全功能鎖定穩定版")
+st.caption("© 2026 應安客服系統 - 2/16 自定義統計週期版")
