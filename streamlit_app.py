@@ -58,7 +58,7 @@ with tab1:
     now_ts = datetime.datetime.now(tw_timezone)
     
     if st.session_state.edit_mode:
-        st.warning(f"⚠️ 【編輯模式】- 正在修改第 {st.session_state.edit_row_idx} 列紀錄 (填單人不可更改)")
+        st.warning(f"⚠️ 【編輯模式】- 修改第 {st.session_state.edit_row_idx} 列紀錄 (填單人已鎖定)")
 
     with st.form("my_form", clear_on_submit=True):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
@@ -72,7 +72,6 @@ with tab1:
             caller_name = st.text_input("姓名 (來電人)", value=d[2] if st.session_state.edit_mode else "")
         with col2:
             u_val = d[7] if st.session_state.edit_mode else ""
-            # 新增：當 edit_mode 為 True 時，disabled=True 鎖定填單人
             user_name = st.selectbox(
                 "填單人", 
                 options=STAFF_LIST, 
@@ -103,22 +102,17 @@ with tab1:
                 try:
                     if st.session_state.edit_mode:
                         sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row_content])
-                        st.success("✅ 紀錄已更新！")
+                        st.success("✅ 更新成功！")
                         st.session_state.edit_mode = False
                         st.session_state.edit_data = [""] * 8
                     else:
                         sheet.append_row(row_content)
-                        st.success("✅ 資料已送出！")
+                        st.success("✅ 送出成功！")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"儲存失敗：{e}")
+                    st.error(f"操作失敗：{e}")
 
-    if st.session_state.edit_mode:
-        if st.button("❌ 取消編輯"):
-            st.session_state.edit_mode = False
-            st.rerun()
-
-    # --- 🔍 歷史紀錄與交班動態 ---
+    # --- 🔍 歷史紀錄與交班動態 (加入填單人欄位) ---
     st.markdown("---")
     st.subheader("🔍 歷史紀錄與交班動態")
     
@@ -126,7 +120,7 @@ with tab1:
         data = sheet.get_all_values()
         if len(data) > 1:
             rows = data[1:]
-            search_query = st.text_input("🔍 搜尋紀錄", placeholder="留空顯示 8 小時動態")
+            search_query = st.text_input("🔍 搜尋紀錄", placeholder="搜尋車號、場站、姓名、填單人...")
             
             display_list = []
             now_naive = now_ts.replace(tzinfo=None)
@@ -143,31 +137,38 @@ with tab1:
                         display_list.append((row_num, r))
 
             if display_list:
-                h1, h2, h3, h4, h5, h6 = st.columns([2, 1.5, 1.5, 3.5, 0.8, 0.8])
-                h5.markdown("**編輯**")
-                h6.markdown("**標記**")
+                # 欄位分配比例：日期(2), 場站(1.5), 車號(1.2), 描述(2.5), 填單人(1), 編輯(0.8), 標記(0.8)
+                h1, h2, h3, h4, h5, h6, h7 = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
+                h1.markdown("**日期/時間**")
+                h2.markdown("**場站**")
+                h3.markdown("**車號**")
+                h4.markdown("**描述**")
+                h5.markdown("**填單人**")
+                h6.markdown("**編輯**")
+                h7.markdown("**標記**")
                 st.markdown("<hr style='margin: 2px 0; border: 1px solid #ddd;'>", unsafe_allow_html=True)
 
                 for r_num, r_data in reversed(display_list):
                     with st.container():
-                        c1, c2, c3, c4, c5, c6 = st.columns([2, 1.5, 1.5, 3.5, 0.8, 0.8])
+                        c1, c2, c3, c4, c5, c6, c7 = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
                         with c1: st.write(f"📅 {r_data[0]}")
                         with c2: st.write(f"🏢 {r_data[1]}")
                         with c3: st.write(f"🚗 {r_data[4]}")
-                        with c4: st.write(f"📝 {str(r_data[6])[:30]}...")
-                        with c5:
+                        with c4: st.write(f"📝 {str(r_data[6])[:20]}...")
+                        with c5: st.write(f"👤 {r_data[7]}") # 顯示填單人
+                        with c6:
                             if st.button("📝", key=f"ed_{r_num}"):
                                 st.session_state.edit_mode = True
                                 st.session_state.edit_row_idx = r_num
                                 st.session_state.edit_data = r_data
                                 st.rerun()
-                        with c6:
+                        with c7:
                             st.checkbox(" ", key=f"chk_{r_num}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
             else:
-                st.info("查無符合紀錄。")
+                st.info("無相符紀錄。")
     except Exception as e:
-        st.error(f"資料加載失敗：{e}")
+        st.error(f"讀取出錯：{e}")
 
-# (Tab 2 部分保持不變)
-st.caption("© 2026 應安客服系統 - 2/16 編輯鎖定加強版")
+# (Tab 2 數據統計部分保持不變)
+st.caption("© 2026 應安客服系統 - 2/16 完整欄位顯示版")
