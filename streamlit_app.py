@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 
-# --- 1. 頁面基本設定與樣式淨化 ---
+# --- 1. 頁面基本設定 ---
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 
 hide_st_style = """
@@ -48,7 +48,7 @@ if "edit_mode" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1 內容保持不變 ---
+# --- Tab 1 登記功能 ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -83,7 +83,7 @@ with tab1:
         btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
-    # 歷史紀錄略過...
+    # 歷史紀錄顯示
     st.markdown("---")
     st.subheader("🔍 歷史紀錄與交班動態")
     if sheet:
@@ -111,21 +111,21 @@ with tab1:
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- 📊 Tab 2: 數據統計 (欄位名稱絕對鎖定版) ---
+# --- 📊 Tab 2: 數據統計 (標題絕對鎖定修正版) ---
 with tab2:
     st.title("📊 數據統計與分析 (週報)")
     if st.text_input("管理員密碼", type="password") == "kevin198":
         if sheet:
             all_raw = sheet.get_all_values()
             if len(all_raw) > 1:
-                # 建立 DataFrame 並指定標頭
+                # 建立 DataFrame 並鎖定欄位名稱
                 full_df = pd.DataFrame(all_raw[1:], columns=all_raw[0])
                 
-                # 安全轉換日期 (第一欄固定為日期時間)
+                # 清洗與轉換第一欄日期
                 full_df[full_df.columns[0]] = pd.to_datetime(full_df[full_df.columns[0]], errors='coerce')
                 full_df = full_df.dropna(subset=[full_df.columns[0]])
 
-                # 計算上週週期
+                # 自動計算上週週期 (週一至週日)
                 today = datetime.datetime.now(tw_timezone).date()
                 last_monday = today - datetime.timedelta(days=today.weekday() + 7)
                 last_sunday = last_monday + datetime.timedelta(days=6)
@@ -142,12 +142,12 @@ with tab2:
                     g1, g2 = st.columns(2)
                     with g1:
                         st.subheader("📂 類別佔比")
-                        # --- 修正點：直接指定欄位名稱 '類別' ---
+                        # --- 鎖定關鍵字：類別 ---
                         fig1 = px.pie(df, names='類別', hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                         st.plotly_chart(fig1, use_container_width=True, config=chart_config)
                     with g2:
                         st.subheader("🏢 場站佔比")
-                        # --- 修正點：直接指定欄位名稱 '場站名稱' ---
+                        # --- 鎖定關鍵字：場站名稱 ---
                         fig2 = px.pie(df, names='場站名稱', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(fig2, use_container_width=True, config=chart_config)
                     
@@ -165,5 +165,10 @@ with tab2:
                         st_top.columns = ['場站名稱', '件數']
                         fig4 = px.bar(st_top, x='件數', y='場站名稱', orientation='h', color='件數', color_continuous_scale='Blues')
                         st.plotly_chart(fig4, use_container_width=True, config=chart_config)
+                    
+                    st.write("📋 **週期明細資料**")
+                    st.dataframe(df.sort_values(by=df.columns[0], ascending=False), use_container_width=True)
                 else:
-                    st.warning("⚠️ 此週期內尚無登記資料。")
+                    st.warning("⚠️ 此週期內尚無資料。")
+
+st.caption("© 2026 應安客服系統 - 2/16 標題鎖定精準版")
