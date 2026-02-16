@@ -38,7 +38,7 @@ def init_connection():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"連線失敗: {e}")
+        st.error(f"連連線失敗: {e}")
         return None
 
 client = init_connection()
@@ -48,7 +48,7 @@ if client:
 else:
     conn_success = False
 
-# --- 4. UI 分頁功能 ---
+# --- 4. UI 邏輯 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 with tab1:
@@ -57,7 +57,7 @@ with tab1:
     dt_str = now_ts.strftime("%Y-%m-%d %H:%M:%S")
 
     if conn_success:
-        # 【登記表單】
+        # 【表單區】
         with st.form("my_form", clear_on_submit=True):
             st.info(f"🕒 當前登記時間：{dt_str}")
             col1, col2 = st.columns(2)
@@ -67,22 +67,18 @@ with tab1:
             with col2:
                 user_name = st.selectbox("填單人 (員工姓名)", options=STAFF_LIST)
                 caller_phone = st.text_input("電話")
-            
             col3, col4 = st.columns(2)
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
                 car_num = st.text_input("車號")
-            
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
             with btn_col1:
                 submit = st.form_submit_button("確認送出")
-            with btn_col2:
-                st.link_button("多元支付", "http://219.85.163.90:5010/")
-            with btn_col3:
-                st.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
+            with btn_col2: st.link_button("多元支付", "http://219.85.163.90:5010/")
+            with btn_col3: st.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
             if submit:
                 if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
@@ -95,7 +91,7 @@ with tab1:
                 else:
                     st.warning("⚠️ 請填寫必填欄位 (填單人與場站)")
 
-        # --- 🔍 核心功能：8 小時輪動動態 + 關鍵字搜尋 ---
+        # --- 🔍 核心功能：8 小時輪動動態 (強化日期格式識別版) ---
         st.markdown("---")
         st.subheader("🔍 歷史紀錄與交班動態")
         
@@ -104,32 +100,31 @@ with tab1:
             if len(raw_data) > 1:
                 df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
                 
-                # 時間預處理：強制轉換為不帶時區的時間格式以便比對
-                df['dt_temp'] = pd.to_datetime(df.iloc[:, 0], errors='coerce').dt.tz_localize(None)
+                # 關鍵修正：強制將第一欄轉換為日期時間，不論斜線或橫槓格式
+                df['dt_temp'] = pd.to_datetime(df.iloc[:, 0], dayfirst=False, errors='coerce')
                 
                 search_query = st.text_input("🔍 關鍵字查詢", placeholder="輸入車號、電話、姓名... (留空顯示最近 8 小時紀錄)")
                 
                 if search_query:
-                    # 模式 A：全域搜尋
                     mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
                     display_df = df[mask]
                     st.write(f"🔎 找到 {len(display_df)} 筆與 **{search_query}** 相關的紀錄：")
                 else:
-                    # 模式 B：8 小時內動態顯示
-                    # 取得目前台灣時間並去除時區資訊
+                    # 計算 8 小時前（統一移除時區進行安全比對）
                     eight_hours_ago = now_ts.replace(tzinfo=None) - datetime.timedelta(hours=8)
+                    
+                    # 過濾條件
                     display_df = df[df['dt_temp'] >= eight_hours_ago]
                     
                     if not display_df.empty:
-                        st.info(f"🕒 自動顯示最近 8 小時動態 (自 {eight_hours_ago.strftime('%H:%M')} 起)")
+                        st.success(f"🕒 自動顯示最近 8 小時動態 (自 {eight_hours_ago.strftime('%m/%d %H:%M')} 起)")
                     else:
-                        st.write("目前 8 小時內暫無新紀錄，請使用關鍵字查詢舊資料。")
+                        st.warning("⚠️ 目前 8 小時內暫無新紀錄，請使用關鍵字查詢舊資料。")
 
                 if not display_df.empty:
-                    # 移除計算用欄位並倒序排列（最新在前）
+                    # 移除暫存欄位並倒序
                     final_df = display_df.drop(columns=['dt_temp'], errors='ignore').iloc[::-1]
                     
-                    # 套用表格樣式美化
                     st.markdown("""
                         <style>
                         table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -139,7 +134,7 @@ with tab1:
                         """, unsafe_allow_html=True)
                     st.write(final_df.to_html(index=False, justify='left', classes='table'), unsafe_allow_html=True)
         except Exception as e:
-            st.error(f"紀錄載入出錯：{e}")
+            st.error(f"資料處理出錯：{e}")
 
 # --- Tab 2: 數據統計 ---
 with tab2:
@@ -149,8 +144,7 @@ with tab2:
             raw_data = sheet.get_all_values()
             if len(raw_data) > 1:
                 df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                st.metric("累積登記件數", len(df_stat))
-                st.subheader("填單人統計")
+                st.metric("總登記件數", len(df_stat))
                 st.bar_chart(df_stat['填單人 (員工姓名)'].value_counts())
                 st.dataframe(df_stat.iloc[::-1], use_container_width=True)
 
