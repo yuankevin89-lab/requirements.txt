@@ -150,11 +150,11 @@ with tab2:
                 fig1 = px.pie(df, names=df.columns[5], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                 st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                st.subheader("🏢 場站案件佔比") # 已修改為場站佔比
+                st.subheader("🏢 場站類別佔比") # 已修改為場站佔比
                 fig2 = px.pie(df, names=df.columns[1], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig2, use_container_width=True)
             
-            st.subheader("🏢 場站案件排行 (Top 10)")
+            st.subheader("🏢 場站類別排行 (Top 10)")
             top10 = df.iloc[:, 1].value_counts().head(10).reset_index()
             top10.columns = ['場站', '件數']
             fig3 = px.bar(top10, x='件數', y='場站', orientation='h', color='件數', color_continuous_scale='Blues')
