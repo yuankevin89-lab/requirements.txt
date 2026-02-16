@@ -9,7 +9,7 @@ import pytz
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 場站清單 (已將 其他(未登入場站) 移至最後) ---
+# --- 2. 資料清單設定 ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", 
     "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", 
@@ -25,30 +25,29 @@ STATION_LIST = [
     "新台五路", "蘆竹場", "龜山興富", "竹東長春", "竹南中山", "銅鑼停一", "台中黎明", "後龍", "台中復興", 
     "文心場", "大和屋一場", "大和屋二場", "北港場", "西螺", "虎尾", "民德", "衛民場", "衛民二場", 
     "台南北門場", "台南永福", "台南國華", "台南民權", "善化", "仁德", "台南中華場", "致穩", "台南康樂場", 
-    "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場",
-    "其他(未登入場站)" # 已移至最後
+    "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場", "其他(未登入場站)" 
 ]
-
-# 填單人名單 (維持最新版)
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
 # --- 3. Google Sheets 連線 ---
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_dict = st.secrets["google_sheets"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-    return client
+    try:
+        creds_dict = st.secrets["google_sheets"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"連線失敗: {e}")
+        return None
 
-try:
-    client = init_connection()
+client = init_connection()
+if client:
     sheet = client.open("客服作業表").sheet1
     conn_success = True
-except Exception as e:
-    st.error(f"連線失敗: {e}")
+else:
     conn_success = False
 
-# --- 4. 分頁邏輯 ---
+# --- 4. UI 分頁 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 with tab1:
@@ -57,6 +56,7 @@ with tab1:
     dt_str = now_obj.strftime("%Y-%m-%d %H:%M:%S")
 
     if conn_success:
+        # 表單區塊
         with st.form("my_form", clear_on_submit=True):
             st.info(f"🕒 登記時間：{dt_str}")
             col1, col2 = st.columns(2)
@@ -66,11 +66,13 @@ with tab1:
             with col2:
                 user_name = st.selectbox("填單人 (員工姓名)", options=STAFF_LIST)
                 caller_phone = st.text_input("電話")
+            
             col3, col4 = st.columns(2)
             with col3:
                 category = st.selectbox("來電類別", ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"])
             with col4:
                 car_num = st.text_input("車號")
+            
             description = st.text_area("描述 (詳細過程)")
             
             btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
@@ -79,61 +81,72 @@ with tab1:
             with btn_col2:
                 st.link_button("多元支付", "http://219.85.163.90:5010/")
             with btn_col3:
-                st.link_button("簡訊", "https://umc.fetnet.net/#/menu/login")
+                st.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
             if submit:
-                if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋" and description:
+                if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
                     try:
-                        with st.spinner('正在上傳...'):
-                            row_to_add = [dt_str, station_name, caller_name, caller_phone, car_num, category, description, user_name]
-                            sheet.append_row(row_to_add)
-                            st.success("✅ 資料已成功上傳！")
-                            st.rerun()
+                        sheet.append_row([dt_str, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name])
+                        st.success("✅ 資料已成功送出！")
+                        st.rerun()
                     except Exception as e:
-                        st.error(f"上傳錯誤：{e}")
+                        st.error(f"發送失敗：{e}")
                 else:
-                    st.warning("⚠️ 請完整填寫必填欄位 (填單人、場站及描述)。")
+                    st.warning("⚠️ 請完整填寫必填欄位。")
 
-        # --- 🔍 全方位關鍵字查詢區塊 ---
+        # --- 🔍 8 小時輪動紀錄與關鍵字查詢 ---
         st.markdown("---")
-        st.subheader("🔍 歷史紀錄快速查詢")
-        search_query = st.text_input("輸入關鍵字進行搜尋", placeholder="可輸入車號、姓名、電話或描述內容...")
+        st.subheader("🔍 歷史紀錄與即時動態")
         
-        if search_query:
-            try:
-                raw_data = sheet.get_all_values()
-                if len(raw_data) > 1:
-                    df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+        try:
+            raw_data = sheet.get_all_values()
+            if len(raw_data) > 1:
+                df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+                # 轉換第一欄為日期時間格式
+                df['dt_temp'] = pd.to_datetime(df.iloc[:, 0], errors='coerce')
+                
+                search_query = st.text_input("🔍 輸入關鍵字查詢 (留空顯示最近 8 小時紀錄)", placeholder="搜尋車號、電話、姓名...")
+                
+                if search_query:
+                    # 模式 A：搜尋模式
                     mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
-                    result_df = df[mask]
-                    if not result_df.empty:
-                        st.write(f"找到 {len(result_df)} 筆相關紀錄：")
-                        display_df = result_df.iloc[::-1]
-                        table_html = display_df.to_html(index=False, justify='left', classes='table')
-                        st.markdown("<style>table { width: 100%; border-collapse: collapse; } th { background-color: #f0f2f6; text-align: left; padding: 10px; } td { text-align: left; padding: 10px; border-bottom: 1px solid #ddd; word-wrap: break-word; }</style>", unsafe_allow_html=True)
-                        st.write(table_html, unsafe_allow_html=True)
-                    else:
-                        st.info(f"查無包含 **{search_query}** 的紀錄。")
-            except Exception as e:
-                st.error(f"查詢出錯：{e}")
+                    display_df = df[mask]
+                    st.write(f"🔎 找到 {len(display_df)} 筆與 **{search_query}** 相關的紀錄：")
+                else:
+                    # 模式 B：8 小時輪動模式
+                    eight_hours_ago = now_obj - datetime.timedelta(hours=8)
+                    # 統一移除時區資訊進行比較
+                    display_df = df[df['dt_temp'] >= eight_hours_ago.replace(tzinfo=None)]
+                    st.info(f"🕒 顯示最近 8 小時動態 (自 {eight_hours_ago.strftime('%m/%d %H:%M')} 起)")
 
-# --- Tab 2: 數據統計 (維持最新版) ---
+                if not display_df.empty:
+                    # 倒序顯示最新紀錄
+                    final_df = display_df.drop(columns=['dt_temp']).iloc[::-1]
+                    
+                    # 套用表格樣式
+                    st.markdown("""
+                        <style>
+                        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+                        th { background-color: #f0f2f6; text-align: left; padding: 8px; border: 1px solid #ddd; }
+                        td { text-align: left; padding: 8px; border: 1px solid #ddd; word-wrap: break-word; }
+                        </style>
+                        """, unsafe_allow_html=True)
+                    st.write(final_df.to_html(index=False, justify='left', classes='table'), unsafe_allow_html=True)
+                else:
+                    st.write("目前無相關紀錄。")
+        except Exception as e:
+            st.error(f"讀取紀錄失敗：{e}")
+
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計")
-    PASSWORD = "kevin198"
-    pw = st.text_input("管理員密碼", type="password")
-    if pw == PASSWORD:
+    if st.text_input("管理員密碼", type="password") == "kevin198":
         if conn_success:
-            if st.button("🔄 刷新統計數據"):
-                try:
-                    raw_data = sheet.get_all_values()
-                    if len(raw_data) > 1:
-                        df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                        df_stat['日期/時間'] = pd.to_datetime(df_stat['日期/時間'], format='mixed').dt.date
-                        today = datetime.datetime.now(tw_timezone).date()
-                        today_df = df_stat[df_stat['日期/時間'] == today]
-                        st.metric("今日總來電數", len(today_df))
-                        if not today_df.empty:
-                            st.bar_chart(today_df.iloc[:, 1].value_counts())
-                except Exception as e:
-                    st.error(f"統計分析失敗：{e}")
+            raw_data = sheet.get_all_values()
+            if len(raw_data) > 1:
+                df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
+                st.metric("總登記件數", len(df_stat))
+                st.bar_chart(df_stat['填單人 (員工姓名)'].value_counts())
+                st.dataframe(df_stat.iloc[::-1], use_container_width=True)
+
+st.caption("© 2026 應安客服系統 ")
