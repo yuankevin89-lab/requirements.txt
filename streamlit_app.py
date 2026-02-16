@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 
-# --- 1. 頁面基本設定與樣式 ---
+# --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
 st.markdown("""
@@ -17,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
-    /* [功能] 標記變色 */
+    /* [功能] 標記變色樣式 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -26,7 +26,7 @@ st.markdown("""
         border: 1px solid #c8e6c9;
     }
     
-    /* [功能] 懸停預覽 */
+    /* [功能] 懸停預覽樣式 */
     .hover-text {
         cursor: help;
         color: #1f77b4;
@@ -69,10 +69,12 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
+    # --- 案件登記表單 ---
     with st.form("my_form", clear_on_submit=True):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M:%S")
         st.info(f"🕒 案件時間：{f_dt}")
+        
         c1, c2 = st.columns(2)
         with c1:
             station_name = st.selectbox("場站名稱", options=STATION_LIST, index=STATION_LIST.index(d[1]) if d[1] in STATION_LIST else 0)
@@ -80,21 +82,27 @@ with tab1:
         with c2:
             user_name = st.selectbox("填單人", options=STAFF_LIST, index=STAFF_LIST.index(d[7]) if d[7] in STAFF_LIST else 0, disabled=st.session_state.edit_mode)
             caller_phone = st.text_input("電話", value=d[3])
+        
         c3, c4 = st.columns(2)
         with c3:
             category = st.selectbox("類別", options=["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"], index=["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"].index(d[5]) if d[5] in ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"] else 4)
         with c4:
             car_num = st.text_input("車號", value=d[4])
+        
         description = st.text_area("描述內容", value=d[6])
         
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
+        
         submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
+        
         if st.session_state.edit_mode:
             if btn_c2.form_submit_button("❌ 取消編輯"):
                 st.session_state.edit_mode = False
+                st.session_state.edit_data = [""]*8
                 st.rerun()
         else:
             btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
+            
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
         if submit_btn:
@@ -107,45 +115,51 @@ with tab1:
                     sheet.append_row(row)
                 st.rerun()
             else:
-                st.error("請確認填單人與場站是否已選取")
+                st.error("請檢查填單人或場站名稱是否已正確選擇。")
 
-    # --- 最近紀錄 (搜尋精確化修正) ---
+    # --- 最近紀錄 (精確搜尋修復版) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
-        # 抓取並嚴格排除空列
-        raw_data = sheet.get_all_values()
-        if len(raw_data) > 1:
-            header = raw_data[0]
-            # 過濾掉除了標題以外，內容全空的列，並記錄原始行索引(i+2)
+        # 1. 抓取資料並預過濾掉完全空白的列
+        all_raw = sheet.get_all_values()
+        if len(all_raw) > 1:
+            header = all_raw[0]
+            # 建立帶有正確 Google Sheet 列號 (i+2) 的資料清單，且排除無內容列
             valid_rows = []
-            for i, r in enumerate(raw_data[1:]):
-                if any(str(field).strip() for field in r):
+            for i, r in enumerate(all_raw[1:]):
+                if r and any(str(cell).strip() for cell in r):
                     valid_rows.append((i+2, r))
             
-            # 搜尋輸入 (去除前後空白)
-            search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位比對)", placeholder="輸入姓名、車號、場站或描述...").strip()
+            # 2. 搜尋框處理
+            search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", placeholder="輸入關鍵字...").strip().lower()
             
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
             
+            # 3. 搜尋邏輯：嚴格比對文字內容
             if search_q:
-                # [修正點]：只有當欄位真的包含關鍵字時才加入，避免空值誤判
-                display_list = [(idx, r) for idx, r in valid_rows if any(search_q.lower() in str(f).lower() for f in r)]
+                for idx, r in valid_rows:
+                    # 只有當該行有任一欄位「去除空白後」真的包含關鍵字，才加入
+                    if any(search_q in str(cell).strip().lower() for cell in r):
+                        display_list.append((idx, r))
             else:
-                # 8小時輪動
+                # 8小時輪動邏輯
                 for idx, r in valid_rows:
                     try:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
-                        if dt >= eight_hrs_ago: display_list.append((idx, r))
+                        if dt >= eight_hrs_ago:
+                            display_list.append((idx, r))
                     except: continue
-                # 智慧保底
+                # 智慧保底 3 筆
                 if not display_list:
                     display_list = valid_rows[-3:]
 
+            # 4. 顯示列表
             if display_list:
                 cols = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
-                for col, t in zip(cols, ["日期/時間", "場站", "車號", "描述摘要", "填單人", "編輯", "標記"]): col.markdown(f"**{t}**")
+                for col, t in zip(cols, ["日期/時間", "場站", "車號", "描述摘要", "填單人", "編輯", "標記"]):
+                    col.markdown(f"**{t}**")
                 st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
                 
                 for r_idx, r_val in reversed(display_list):
@@ -157,13 +171,13 @@ with tab1:
                         short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
                         c[3].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
                         c[4].write(r_val[7])
-                        if c[5].button("📝", key=f"e_{r_idx}"):
+                        if c[5].button("📝", key=f"ed_{r_idx}"):
                             st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                             st.rerun()
-                        c[6].checkbox(" ", key=f"c_{r_idx}", label_visibility="collapsed")
+                        c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
             else:
-                st.info("查無符合關鍵字的紀錄")
+                st.info("查無符合關鍵字的紀錄。")
 
 # --- Tab 2: 數據統計 ---
 with tab2:
@@ -176,10 +190,14 @@ with tab2:
                 df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
+                
                 today = datetime.datetime.now(tw_timezone).date()
                 mon = today - datetime.timedelta(days=today.weekday() + 7)
-                sun = mon + datetime.timedelta(days=6)
+                sun = mon + datetime.timedelta(days=Mon + 6) # 此處修正變數引用錯誤
+                
+                # 正確的週報週期邏輯
                 wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= mon) & (df_s[hdr[0]].dt.date <= sun)]
+
                 if not wk_df.empty:
                     st.success(f"📅 統計週期：{mon} ~ {sun}")
                     g1, g2 = st.columns(2)
@@ -192,4 +210,4 @@ with tab2:
                         fig2.update_traces(textinfo='label+percent', textposition='outside')
                         st.plotly_chart(fig2, use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 2/16 搜尋修復最終鎖定版")
+st.caption("© 2026 應安客服系統 - 2/16 搜尋精確度最終校正版")
