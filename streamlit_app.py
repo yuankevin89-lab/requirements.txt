@@ -211,4 +211,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 在 {start_date} 至 {end_date} 期間內查無任何報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/16 自定義統計週期版")
+st.caption("© 2026 應安客服系統 ")
