@@ -130,7 +130,7 @@ with tab1:
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- 📊 Tab 2: 數據統計 (已修改圖表) ---
+# --- 📊 Tab 2: 數據統計 (案件佔比 + 場站佔比) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password") == "kevin198":
@@ -146,12 +146,12 @@ with tab2:
             st.markdown("---")
             g1, g2 = st.columns(2)
             with g1:
-                st.subheader("📂 類別案件佔比") # 已修改為類別佔比
+                st.subheader("📂 案件類別佔比")
                 fig1 = px.pie(df, names=df.columns[5], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                 st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                st.subheader("👤 填單人員分配") 
-                fig2 = px.pie(df, names=df.columns[7], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.subheader("🏢 場站案件佔比") # 已修改為場站佔比
+                fig2 = px.pie(df, names=df.columns[1], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig2, use_container_width=True)
             
             st.subheader("🏢 場站案件排行 (Top 10)")
@@ -162,4 +162,4 @@ with tab2:
             
             st.dataframe(df.iloc[::-1], use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 2/16 終極完整基準版")
+st.caption("© 2026 應安客服系統 - 2/16 數據分析優化版")
