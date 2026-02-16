@@ -120,66 +120,78 @@ with tab1:
             else:
                 st.error("請檢查填單人或場站名稱是否已正確選擇。")
 
-    # --- 最近紀錄 (智慧輪動 + 全欄位搜尋) ---
+    # --- 最近紀錄 (修復搜尋異常：優化全欄位比對與智慧輪動機制) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
-        all_data = sheet.get_all_values()
+        # 獲取所有資料並過濾掉空行
+        all_data = [r for r in sheet.get_all_values() if any(field.strip() for field in r)]
+        
         if len(all_data) > 1:
-            rows = all_data[1:]
+            rows = all_data[1:] # 排除標題列
             
-            # [核心功能] 全欄位關鍵字搜尋
-            q = st.text_input("🔍 搜尋歷史紀錄 (可搜尋姓名、電話、描述等全欄位)", placeholder="輸入關鍵字...")
+            # [修正關鍵] 搜尋框輸入
+            q = st.text_input("🔍 搜尋歷史紀錄 (姓名、電話、描述等全欄位搜尋)", placeholder="在此輸入搜尋關鍵字...")
             
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
             
-            if q:
-                # 搜尋模式：掃描每一行的所有內容
-                display_list = [(i+2, r) for i, r in enumerate(rows) if any(q.lower() in str(x).lower() for x in r)]
+            # 1. 如果有輸入關鍵字，執行全欄位搜尋
+            if q and q.strip():
+                display_list = [(i+2, r) for i, r in enumerate(rows) if any(q.lower() in str(field).lower() for field in r)]
             else:
-                # 智慧輪動模式 (8小時過濾)
+                # 2. 無搜尋時，進入智慧輪動 (8小時)
                 for i, r in enumerate(rows):
                     try:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
-                        if dt >= eight_hrs_ago: display_list.append((i+2, r))
-                    except: continue
+                        if dt >= eight_hrs_ago:
+                            display_list.append((i+2, r))
+                    except:
+                        continue
                 
-                # 智慧顯示保底：若 8 小時內無資料，顯示最新 3 筆
+                # 3. 若 8 小時內無資料，智慧保底顯示最後 3 筆
                 if not display_list:
                     display_list = [(i+2, r) for i, r in list(enumerate(rows))[-3:]]
 
+            # 渲染列表
             if display_list:
                 cols = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
                 header_titles = ["日期/時間", "場站", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, header_titles): col.markdown(f"**{t}**")
                 st.markdown("<hr style='margin: 2px 0; border: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
+                # 倒序排列（最新在前）
                 for r_idx, r_val in reversed(display_list):
                     with st.container():
                         c = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
-                        c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[4])
+                        c[0].write(r_val[0]) # 日期時間
+                        c[1].write(r_val[1]) # 場站
+                        c[2].write(r_val[4]) # 車號
                         
-                        # [功能] 懸停預覽全文
+                        # [功能] 懸停預覽全文 (支援雙引號/單引號轉義處理)
                         clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;').replace("'", "&apos;")
                         short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
                         c[3].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
                         
-                        c[4].write(r_val[7])
+                        c[4].write(r_val[7]) # 填單人
                         
+                        # [功能] 編輯按鈕
                         if c[5].button("📝", key=f"ed_{r_idx}"):
                             st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                             st.rerun()
                         
+                        # [功能] 標記變色勾選框
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+            else:
+                st.warning("查無相關紀錄。")
 
 # --- Tab 2: 數據統計與圖表分析 ---
 with tab2:
     st.title("📊 數據統計與分析 (自動週報)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
-            raw_stat = sheet.get_all_values()
+            raw_stat = [r for r in sheet.get_all_values() if any(field.strip() for field in r)]
             if len(raw_stat) > 1:
                 hdr = raw_stat[0]
                 df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
@@ -207,4 +219,4 @@ with tab2:
                         st.plotly_chart(fig2, use_container_width=True)
                 else: st.info("本週期內尚無資料。")
 
-st.caption("© 2026 應安客服系統 - 2/16 全功能基準鎖定版")
+st.caption("© 2026 應安客服系統 - 2/16 最終鎖定完全修復版")
