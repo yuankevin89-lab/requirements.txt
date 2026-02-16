@@ -56,7 +56,7 @@ with tab1:
         
         col1, col2 = st.columns(2)
         with col1:
-            station_name = st.selectbox("場站名稱", options=STATION_LIST, index=STATION_LIST.index(d["場站名稱"]) if d.get("場站名稱") in STATION_LIST else 0)
+            station_name = st.selectbox("場別", options=STATION_LIST, index=STATION_LIST.index(d["場別"]) if d.get("場別") in STATION_LIST else 0)
             caller_name = st.text_input("姓名 (來電人)", value=d.get("姓名 (來電人)", ""))
         with col2:
             user_name = st.selectbox("填單人", options=STAFF_LIST, index=STAFF_LIST.index(d["填單人 (員工姓名)"]) if d.get("填單人 (員工姓名)") in STAFF_LIST else 0)
