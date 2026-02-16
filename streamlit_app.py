@@ -135,7 +135,7 @@ with tab1:
                     with st.container():
                         c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 5, 1])
                         with c1: st.write(f"📅 {row['日期/時間']}")
-                        with c2: st.write(f"🏢 {row['場站名稱']}")
+                        with c2: st.write(f"🏢 {row['場別']}")
                         with c3: st.write(f"🚗 {row['車號']}")
                         with c4: st.write(f"📝 {row['描述 (詳細過程)'][:30]}...") # 顯示前30字
                         with c5:
