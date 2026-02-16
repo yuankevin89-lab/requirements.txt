@@ -26,11 +26,16 @@ hide_st_style = """
                 border: 1px solid #c8e6c9;
             }
             
-            /* 讓摘要文字看起來像可以點擊/懸停的樣子 */
+            /* 預覽文字樣式：藍色虛線底，提示可懸停預覽全文 */
             .hover-text {
                 cursor: help;
                 color: #1f77b4;
                 text-decoration: underline dotted;
+                display: inline-block;
+                width: 100%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             </style>
             """
@@ -38,7 +43,7 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 資料清單設定 (站點清單維持不變) ---
+# --- 2. 資料清單設定 ---
 STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", "統領場", "信義安和", "僑信場", "台北民生", "美麗華場", "基湖場", "北安場", "龍江場", "農安場", "民權西場", "承德場", "承德三", "大龍場", "延平北場", "雙連", "中山機車", "中山場", "南昌", "博愛", "金山", "金華", "詔安", "通化", "杭南一", "復興南", "逸仙", "興岩", "木柵", "泉州", "汀洲", "福州", "北平東", "水源", "重慶南", "西寧市場", "西園國宅", "復興北", "宏泰民生", "福善一", "石牌二", "中央北", "紅毛城", "三玉", "士林", "永平", "大龍峒社宅", "昆陽一", "洲子場", "環山", "文湖場", "民善場", "新明場", "德明研推", "東湖場", "舊宗社宅", "秀山機車", "景平", "環狀A", "土城中華場", "板橋光正", "合宜場", "土城裕民", "中央二", "中央三", "板橋文化", "同安", "佳音竹林", "青潭國小", "林口文化", "秀峰場", "興南場", "中和莊敬", "三重永福", "徐匯場", "蘆洲保和場", "蘆洲三民", "榮華場", "富貴場", "鄉長二", "汐止忠孝", "新台五路", "蘆竹場", "龜山興富", "竹東長春", "竹南中山", "銅鑼停一", "台中黎明", "後龍", "台中復興", "文心場", "大和屋一場", "大和屋二場", "北港場", "西螺", "虎尾", "民德", "衛民場", "衛民二場", "台南北門場", "台南永福", "台南國華", "台南民權", "善化", "仁德", "台南中華場", "致穩", "台南康樂場", "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場", "其他(未登入場站)"]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
@@ -62,7 +67,6 @@ with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
     
-    # (案件登記表單維持不變)
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
@@ -70,6 +74,7 @@ with tab1:
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M:%S")
         st.info(f"🕒 案件時間：{f_dt}")
+        
         c1, c2 = st.columns(2)
         with c1:
             station_name = st.selectbox("場站名稱", options=STATION_LIST, index=STATION_LIST.index(d[1]) if d[1] in STATION_LIST else 0)
@@ -77,12 +82,15 @@ with tab1:
         with c2:
             user_name = st.selectbox("填單人", options=STAFF_LIST, index=STAFF_LIST.index(d[7]) if d[7] in STAFF_LIST else 0, disabled=st.session_state.edit_mode)
             caller_phone = st.text_input("電話", value=d[3])
+        
         c3, c4 = st.columns(2)
         with c3:
             category = st.selectbox("類別", options=["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"], index=["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"].index(d[5]) if d[5] in ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "其他"] else 4)
         with c4:
             car_num = st.text_input("車號", value=d[4])
+        
         description = st.text_area("描述內容", value=d[6])
+        
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
         if btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出"):
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
@@ -99,7 +107,7 @@ with tab1:
         st.session_state.edit_mode = False
         st.rerun()
 
-    # --- 歷史紀錄 (新增懸停預覽全文功能) ---
+    # --- 歷史紀錄 (整合交班邏輯與長文字預覽) ---
     st.markdown("---")
     st.subheader("🔍 歷史紀錄與交班動態")
     if sheet:
@@ -117,15 +125,16 @@ with tab1:
                 for i, r in enumerate(rows):
                     try:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
-                        if dt >= eight_hours_ago: display.append((i+2, r))
+                        if dt >= eight_hours_ago:
+                            display.append((i+2, r))
                     except: continue
                 if not display:
-                    last_three = list(enumerate(rows))[-3:]
-                    display = [(i+2, r) for i, r in last_three]
+                    display = [(i+2, r) for i, r in list(enumerate(rows))[-3:]]
 
             if display:
                 cols = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
-                for col, title in zip(cols, ["日期/時間", "場站", "車號", "描述摘要", "填單人", "編輯", "標記"]): col.markdown(f"**{title}**")
+                for col, title in zip(cols, ["日期/時間", "場站", "車號", "描述摘要", "填單人", "編輯", "標記"]): 
+                    col.markdown(f"**{title}**")
                 st.markdown("<hr style='margin: 2px 0; border: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
                 for r_idx, r_val in reversed(display):
@@ -133,11 +142,10 @@ with tab1:
                         c = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
                         c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[4])
                         
-                        # --- 【功能更新：懸停顯示全文】 ---
-                        full_desc = r_val[6]
-                        short_desc = f"{full_desc[:20]}..." if len(full_desc) > 20 else full_desc
-                        # 使用 HTML title 屬性實現原生預覽視窗
-                        c[3].markdown(f'<div class="hover-text" title="{full_desc}">{short_desc}</div>', unsafe_allow_html=True)
+                        # --- 【功能修正：長文字 HTML 安全轉換】 ---
+                        full_desc_clean = r_val[6].replace('\n', ' ').replace('"', '&quot;').replace("'", "&apos;")
+                        short_desc = f"{r_val[6][:15]}..." if len(r_val[6]) > 15 else r_val[6]
+                        c[3].markdown(f'<div class="hover-text" title="{full_desc_clean}">{short_desc}</div>', unsafe_allow_html=True)
                         
                         c[4].write(r_val[7])
                         if c[5].button("📝", key=f"btn_{r_idx}"):
@@ -146,7 +154,7 @@ with tab1:
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# (Tab 2 數據統計維持最新穩定版...)
+# --- 📊 Tab 2: 數據統計分析 ---
 with tab2:
     st.title("📊 數據統計與分析 (自動週報)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -167,10 +175,10 @@ with tab2:
                     g1, g2 = st.columns(2)
                     with g1:
                         cat_col = next((c for c in df.columns if "類別" in c), df.columns[5])
-                        st.plotly_chart(px.pie(df, names=cat_col, hole=0.4), use_container_width=True)
+                        st.plotly_chart(px.pie(df, names=cat_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe), use_container_width=True)
                     with g2:
                         st_col = next((c for c in df.columns if "場站" in c), df.columns[1])
-                        st.plotly_chart(px.pie(df, names=st_col, hole=0.4), use_container_width=True)
+                        st.plotly_chart(px.pie(df, names=st_col, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel), use_container_width=True)
                     st.dataframe(df.sort_values(by=df.columns[0], ascending=False), use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 2/16 懸停預覽優化版")
+st.caption("© 2026 應安客服系統 - 2/16 長文字預覽修正基準版")
