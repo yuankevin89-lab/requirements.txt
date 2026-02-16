@@ -31,32 +31,32 @@ if client:
 else:
     conn_success = False
 
-# --- 4. 初始化 Session State (編輯模式控制) ---
+# --- 4. 初始化 Session State ---
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode = False
     st.session_state.edit_row_idx = None
     st.session_state.edit_data = {}
 
-# --- 5. UI 分頁 ---
+# --- 5. UI 邏輯 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
     
-    # 【表單區塊】
+    # 編輯模式提示
     if st.session_state.edit_mode:
-        st.warning(f"⚠️ 您正在編輯一筆現有的紀錄 (日期: {st.session_state.edit_data.get('日期/時間')})")
-    
+        st.warning(f"⚠️ 正在編輯紀錄 - 原時間: {st.session_state.edit_data.get('日期/時間', '未知')}")
+
     with st.form("my_form", clear_on_submit=True):
         d = st.session_state.edit_data
-        # 若在編輯模式則顯示原時間，否則顯示現在時間
-        display_dt = d.get("日期/時間", now_ts.strftime("%Y-%m-%d %H:%M:%S"))
-        st.info(f"🕒 案件時間：{display_dt}")
+        # 保持原本的時間，不因為編輯而變動
+        f_dt = d.get("日期/時間", now_ts.strftime("%Y-%m-%d %H:%M:%S"))
         
+        st.info(f"🕒 案件時間：{f_dt}")
         col1, col2 = st.columns(2)
         with col1:
-            station_name = st.selectbox("場別", options=STATION_LIST, index=STATION_LIST.index(d["場別"]) if d.get("場別") in STATION_LIST else 0)
+            station_name = st.selectbox("場站名稱", options=STATION_LIST, index=STATION_LIST.index(d["場站名稱"]) if d.get("場站名稱") in STATION_LIST else 0)
             caller_name = st.text_input("姓名 (來電人)", value=d.get("姓名 (來電人)", ""))
         with col2:
             user_name = st.selectbox("填單人", options=STAFF_LIST, index=STAFF_LIST.index(d["填單人 (員工姓名)"]) if d.get("填單人 (員工姓名)") in STAFF_LIST else 0)
@@ -69,23 +69,23 @@ with tab1:
         with col4:
             car_num = st.text_input("車號", value=d.get("車號", ""))
         
-        description = st.text_area("描述 (詳細過程)", value=d.get("描述 (詳細過程)", ""))
+        # 這裡從編輯資料中取出描述，若標題不對則嘗試 '描述'
+        orig_desc = d.get("描述 (詳細過程)", d.get("描述", ""))
+        description = st.text_area("描述 (詳細過程)", value=orig_desc)
         
         btn_col1, btn_col2, btn_col3, btn_col4 = st.columns([1, 1, 1, 3]) 
         with btn_col1:
-            label = "更新紀錄" if st.session_state.edit_mode else "確認送出"
-            submit = st.form_submit_button(label)
+            submit = st.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
         with btn_col2: st.link_button("多元支付", "http://219.85.163.90:5010/")
         with btn_col3: st.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
         if submit:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
-                row_content = [display_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
+                row_content = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 try:
                     if st.session_state.edit_mode:
-                        # 試算表 Index 從 1 開始，標題佔 1 行，所以是 row_idx + 1
                         sheet.update(f"A{st.session_state.edit_row_idx + 1}:H{st.session_state.edit_row_idx + 1}", [row_content])
-                        st.success("✅ 紀錄已成功更新！")
+                        st.success("✅ 紀錄更新成功！")
                         st.session_state.edit_mode = False
                         st.session_state.edit_data = {}
                     else:
@@ -94,11 +94,9 @@ with tab1:
                     st.rerun()
                 except Exception as e:
                     st.error(f"儲存失敗：{e}")
-            else:
-                st.warning("⚠️ 請完整填寫場站與填單人。")
 
     if st.session_state.edit_mode:
-        if st.button("❌ 取消編輯 (回歸新增模式)"):
+        if st.button("❌ 取消編輯"):
             st.session_state.edit_mode = False
             st.session_state.edit_data = {}
             st.rerun()
@@ -111,11 +109,11 @@ with tab1:
         raw_data = sheet.get_all_values()
         if len(raw_data) > 1:
             df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-            # 儲存原始行索引 (試算表行號)
             df['row_idx'] = df.index + 1
+            # 確保有 dt_temp 進行 8H 比對
             df['dt_temp'] = pd.to_datetime(df.iloc[:, 0], format='mixed', errors='coerce').dt.tz_localize(None).dt.floor('s')
             
-            search_query = st.text_input("🔍 關鍵字查詢", placeholder="搜尋車號、姓名... (留空顯示最近 8 小時)")
+            search_query = st.text_input("🔍 查詢紀錄 (搜尋車號、姓名、場站)", placeholder="留空顯示 8 小時動態")
             
             if search_query:
                 mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
@@ -125,29 +123,29 @@ with tab1:
                 display_df = df[df['dt_temp'] >= eight_hours_ago]
 
             if not display_df.empty:
-                # 倒序排列
                 display_df = display_df.iloc[::-1]
                 
-                # 為了加入「編輯」按鈕，我們需要逐行渲染
-                # 這裡使用一種類似表格但能放按鈕的 layout
+                # 遍歷顯示，並對欄位名稱做防錯處理
                 for _, row in display_df.iterrows():
-                    # 建立美觀的顯示行
+                    # 擷取描述文字 (防止標題名稱不一導致報錯)
+                    desc_text = row.get("描述 (詳細過程)", row.get("描述", "無描述內容"))
+                    
                     with st.container():
-                        c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 5, 1])
-                        with c1: st.write(f"📅 {row['日期/時間']}")
-                        with c2: st.write(f"🏢 {row['場別']}")
-                        with c3: st.write(f"🚗 {row['車號']}")
-                        with c4: st.write(f"📝 {row['描述 (詳細過程)'][:30]}...") # 顯示前30字
+                        c1, c2, c3, c4, c5 = st.columns([2, 1.5, 1.5, 4, 1])
+                        with c1: st.write(f"📅 {row.iloc[0]}") # 使用位置讀取日期
+                        with c2: st.write(f"🏢 {row.get('場站名稱', '未知')}")
+                        with c3: st.write(f"🚗 {row.get('車號', '---')}")
+                        with c4: st.write(f"📝 {str(desc_text)[:40]}...")
                         with c5:
-                            if st.button("📝 編輯", key=f"btn_{row['row_idx']}"):
+                            if st.button("📝 編輯", key=f"edit_{row['row_idx']}"):
                                 st.session_state.edit_mode = True
                                 st.session_state.edit_row_idx = row['row_idx']
                                 st.session_state.edit_data = row.to_dict()
                                 st.rerun()
-                        st.markdown("---")
+                        st.markdown("<hr style='margin: 5px 0;'>", unsafe_allow_html=True)
             else:
-                st.info("目前無紀錄。")
+                st.info("查無符合條件的紀錄。")
     except Exception as e:
-        st.error(f"資料讀取失敗：{e}")
+        st.error(f"表格載入錯誤，請確認試算表欄位標題。錯誤原因: {e}")
 
-# (Tab 2 數據統計保持不變)
+# (Tab 2 數據統計部分保持不變)
