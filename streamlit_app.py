@@ -48,7 +48,7 @@ if "edit_mode" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1 登記功能 ---
+# --- Tab 1 登記功能 (邏輯不變) ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -83,7 +83,7 @@ with tab1:
         btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
-    # 歷史紀錄顯示
+    # 歷史紀錄略過... (程式碼中包含搜尋與標記功能)
     st.markdown("---")
     st.subheader("🔍 歷史紀錄與交班動態")
     if sheet:
@@ -111,28 +111,33 @@ with tab1:
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- 📊 Tab 2: 數據統計 (標題絕對鎖定修正版) ---
+# --- 📊 Tab 2: 數據統計分析 (修正欄位匹配問題) ---
 with tab2:
     st.title("📊 數據統計與分析 (週報)")
     if st.text_input("管理員密碼", type="password") == "kevin198":
         if sheet:
             all_raw = sheet.get_all_values()
             if len(all_raw) > 1:
-                # 建立 DataFrame 並鎖定欄位名稱
+                # 建立 DataFrame，明確指定第一行為欄位標題
                 full_df = pd.DataFrame(all_raw[1:], columns=all_raw[0])
                 
-                # 清洗與轉換第一欄日期
-                full_df[full_df.columns[0]] = pd.to_datetime(full_df[full_df.columns[0]], errors='coerce')
-                full_df = full_df.dropna(subset=[full_df.columns[0]])
+                # 清洗第一欄「日期/時間」，並剔除無效資料
+                date_col_name = full_df.columns[0]
+                full_df[date_col_name] = pd.to_datetime(full_df[date_col_name], errors='coerce')
+                full_df = full_df.dropna(subset=[date_col_name])
 
-                # 自動計算上週週期 (週一至週日)
+                # --- 關鍵修正：確保抓取正確標題名稱的數據 ---
+                col_category = "類別" if "類別" in full_df.columns else full_df.columns[5]
+                col_station = "場站名稱" if "場站名稱" in full_df.columns else full_df.columns[1]
+
+                # 計算上一週週期 (週一至週日)
                 today = datetime.datetime.now(tw_timezone).date()
                 last_monday = today - datetime.timedelta(days=today.weekday() + 7)
                 last_sunday = last_monday + datetime.timedelta(days=6)
-                mask = (full_df[full_df.columns[0]].dt.date >= last_monday) & (full_df[full_df.columns[0]].dt.date <= last_sunday)
+                mask = (full_df[date_col_name].dt.date >= last_monday) & (full_df[date_col_name].dt.date <= last_sunday)
                 df = full_df.loc[mask].copy()
 
-                st.success(f"📅 **統計週期：{last_monday} ~ {last_sunday}**")
+                st.success(f"📅 **統計週期：{last_monday} (一) ~ {last_sunday} (日)**")
                 
                 chart_config = {'displaylogo': False, 'modeBarButtonsToAdd': ['downloadImage'], 
                                 'toImageButtonOptions': {'format': 'png', 'filename': f'應安統計_{last_monday}', 'scale': 2}}
@@ -142,33 +147,33 @@ with tab2:
                     g1, g2 = st.columns(2)
                     with g1:
                         st.subheader("📂 類別佔比")
-                        # --- 鎖定關鍵字：類別 ---
-                        fig1 = px.pie(df, names='類別', hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                        # 使用變數鎖定標題名稱為「類別」的數據
+                        fig1 = px.pie(df, names=col_category, hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                         st.plotly_chart(fig1, use_container_width=True, config=chart_config)
                     with g2:
                         st.subheader("🏢 場站佔比")
-                        # --- 鎖定關鍵字：場站名稱 ---
-                        fig2 = px.pie(df, names='場站名稱', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                        # 使用變數鎖定標題名稱為「場站名稱」的數據
+                        fig2 = px.pie(df, names=col_station, hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(fig2, use_container_width=True, config=chart_config)
                     
                     st.markdown("---")
                     r1, r2 = st.columns(2)
                     with r1:
                         st.subheader("📊 類別排行 (Top 10)")
-                        cat_top = df['類別'].value_counts().head(10).reset_index()
+                        cat_top = df[col_category].value_counts().head(10).reset_index()
                         cat_top.columns = ['類別', '件數']
                         fig3 = px.bar(cat_top, x='件數', y='類別', orientation='h', color='件數', color_continuous_scale='Reds')
                         st.plotly_chart(fig3, use_container_width=True, config=chart_config)
                     with r2:
                         st.subheader("🏢 場站排行 (Top 10)")
-                        st_top = df['場站名稱'].value_counts().head(10).reset_index()
+                        st_top = df[col_station].value_counts().head(10).reset_index()
                         st_top.columns = ['場站名稱', '件數']
                         fig4 = px.bar(st_top, x='件數', y='場站名稱', orientation='h', color='件數', color_continuous_scale='Blues')
                         st.plotly_chart(fig4, use_container_width=True, config=chart_config)
                     
-                    st.write("📋 **週期明細資料**")
-                    st.dataframe(df.sort_values(by=df.columns[0], ascending=False), use_container_width=True)
+                    st.write("📋 **本週期明細**")
+                    st.dataframe(df.sort_values(by=date_col_name, ascending=False), use_container_width=True)
                 else:
-                    st.warning("⚠️ 此週期內尚無資料。")
+                    st.warning("⚠️ 此週期內尚無登記資料。")
 
 st.caption("© 2026 應安客服系統 - 2/16 標題鎖定精準版")
