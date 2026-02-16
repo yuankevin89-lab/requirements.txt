@@ -25,7 +25,8 @@ STATION_LIST = [
     "新台五路", "蘆竹場", "龜山興富", "竹東長春", "竹南中山", "銅鑼停一", "台中黎明", "後龍", "台中復興", 
     "文心場", "大和屋一場", "大和屋二場", "北港場", "西螺", "虎尾", "民德", "衛民場", "衛民二場", 
     "台南北門場", "台南永福", "台南國華", "台南民權", "善化", "仁德", "台南中華場", "致穩", "台南康樂場", 
-    "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場", "其他(未登入場站)" 
+    "金財神", "蘭井", "友愛場", "佳音西園", "中華信義", "敦南場", "中華北門場", "東大門場",
+    "其他(未登入場站)" 
 ]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 
@@ -47,18 +48,18 @@ if client:
 else:
     conn_success = False
 
-# --- 4. UI 分頁 ---
+# --- 4. UI 分頁功能 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計"])
 
 with tab1:
     st.title("📝 應安客服線上登記系統")
-    now_obj = datetime.datetime.now(tw_timezone)
-    dt_str = now_obj.strftime("%Y-%m-%d %H:%M:%S")
+    now_ts = datetime.datetime.now(tw_timezone)
+    dt_str = now_ts.strftime("%Y-%m-%d %H:%M:%S")
 
     if conn_success:
-        # 表單區塊
+        # 【登記表單】
         with st.form("my_form", clear_on_submit=True):
-            st.info(f"🕒 登記時間：{dt_str}")
+            st.info(f"🕒 當前登記時間：{dt_str}")
             col1, col2 = st.columns(2)
             with col1:
                 station_name = st.selectbox("場站名稱 (搜尋並點選)", options=STATION_LIST)
@@ -90,52 +91,55 @@ with tab1:
                         st.success("✅ 資料已成功送出！")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"發送失敗：{e}")
+                        st.error(f"儲存失敗：{e}")
                 else:
-                    st.warning("⚠️ 請完整填寫必填欄位。")
+                    st.warning("⚠️ 請填寫必填欄位 (填單人與場站)")
 
-        # --- 🔍 8 小時輪動紀錄與關鍵字查詢 ---
+        # --- 🔍 核心功能：8 小時輪動動態 + 關鍵字搜尋 ---
         st.markdown("---")
-        st.subheader("🔍 歷史紀錄與即時動態")
+        st.subheader("🔍 歷史紀錄與交班動態")
         
         try:
             raw_data = sheet.get_all_values()
             if len(raw_data) > 1:
                 df = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                # 轉換第一欄為日期時間格式
-                df['dt_temp'] = pd.to_datetime(df.iloc[:, 0], errors='coerce')
                 
-                search_query = st.text_input("🔍 輸入關鍵字查詢 (留空顯示最近 8 小時紀錄)", placeholder="搜尋車號、電話、姓名...")
+                # 時間預處理：強制轉換為不帶時區的時間格式以便比對
+                df['dt_temp'] = pd.to_datetime(df.iloc[:, 0], errors='coerce').dt.tz_localize(None)
+                
+                search_query = st.text_input("🔍 關鍵字查詢", placeholder="輸入車號、電話、姓名... (留空顯示最近 8 小時紀錄)")
                 
                 if search_query:
-                    # 模式 A：搜尋模式
+                    # 模式 A：全域搜尋
                     mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
                     display_df = df[mask]
                     st.write(f"🔎 找到 {len(display_df)} 筆與 **{search_query}** 相關的紀錄：")
                 else:
-                    # 模式 B：8 小時輪動模式
-                    eight_hours_ago = now_obj - datetime.timedelta(hours=8)
-                    # 統一移除時區資訊進行比較
-                    display_df = df[df['dt_temp'] >= eight_hours_ago.replace(tzinfo=None)]
-                    st.info(f"🕒 顯示最近 8 小時動態 (自 {eight_hours_ago.strftime('%m/%d %H:%M')} 起)")
+                    # 模式 B：8 小時內動態顯示
+                    # 取得目前台灣時間並去除時區資訊
+                    eight_hours_ago = now_ts.replace(tzinfo=None) - datetime.timedelta(hours=8)
+                    display_df = df[df['dt_temp'] >= eight_hours_ago]
+                    
+                    if not display_df.empty:
+                        st.info(f"🕒 自動顯示最近 8 小時動態 (自 {eight_hours_ago.strftime('%H:%M')} 起)")
+                    else:
+                        st.write("目前 8 小時內暫無新紀錄，請使用關鍵字查詢舊資料。")
 
                 if not display_df.empty:
-                    # 倒序顯示最新紀錄
-                    final_df = display_df.drop(columns=['dt_temp']).iloc[::-1]
+                    # 移除計算用欄位並倒序排列（最新在前）
+                    final_df = display_df.drop(columns=['dt_temp'], errors='ignore').iloc[::-1]
                     
-                    # 套用表格樣式
+                    # 套用表格樣式美化
                     st.markdown("""
                         <style>
                         table { width: 100%; border-collapse: collapse; font-size: 14px; }
-                        th { background-color: #f0f2f6; text-align: left; padding: 8px; border: 1px solid #ddd; }
-                        td { text-align: left; padding: 8px; border: 1px solid #ddd; word-wrap: break-word; }
+                        th { background-color: #f0f2f6; text-align: left; padding: 10px; border: 1px solid #ddd; }
+                        td { text-align: left; padding: 10px; border: 1px solid #ddd; word-wrap: break-word; }
                         </style>
                         """, unsafe_allow_html=True)
                     st.write(final_df.to_html(index=False, justify='left', classes='table'), unsafe_allow_html=True)
-                else:
-                    st.write("目前無相關紀錄。")
         except Exception as e:
-            st.error(f"讀取紀錄失敗：{e}")
+            st.error(f"紀錄載入出錯：{e}")
 
 # --- Tab 2: 數據統計 ---
 with tab2:
@@ -145,8 +149,9 @@ with tab2:
             raw_data = sheet.get_all_values()
             if len(raw_data) > 1:
                 df_stat = pd.DataFrame(raw_data[1:], columns=raw_data[0])
-                st.metric("總登記件數", len(df_stat))
+                st.metric("累積登記件數", len(df_stat))
+                st.subheader("填單人統計")
                 st.bar_chart(df_stat['填單人 (員工姓名)'].value_counts())
                 st.dataframe(df_stat.iloc[::-1], use_container_width=True)
 
-st.caption("© 2026 應安客服系統 ")
+st.caption("© 2026 應安客服系統 - 8小時即時動態版")
