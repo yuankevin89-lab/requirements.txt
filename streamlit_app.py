@@ -4,12 +4,11 @@ import gspread
 import datetime
 import pandas as pd
 import pytz
-import plotly.express as px  # 功能完整版：導入 Plotly
+import plotly.express as px
 
 # --- 1. 頁面基本設定與樣式淨化 ---
 st.set_page_config(page_title="應安客服線上登記系統", page_icon="📝", layout="wide")
 
-# CSS 注入：隱藏選單 + 勾選變色邏輯
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -59,7 +58,7 @@ with tab1:
     now_ts = datetime.datetime.now(tw_timezone)
     
     if st.session_state.edit_mode:
-        st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列")
+        st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
     with st.form("my_form", clear_on_submit=True):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
@@ -83,7 +82,7 @@ with tab1:
         description = st.text_area("描述", value=d[6])
         
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
-        if btn_c1.form_submit_button("更新" if st.session_state.edit_mode else "送出"):
+        if btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出"):
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
@@ -105,7 +104,7 @@ with tab1:
         data = sheet.get_all_values()
         if len(data) > 1:
             rows = data[1:]
-            search = st.text_input("🔍 搜尋")
+            search = st.text_input("🔍 搜尋歷史紀錄")
             eight_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             
             display = []
@@ -117,8 +116,9 @@ with tab1:
             
             if display:
                 cols = st.columns([2, 1.5, 1.2, 2.5, 1, 0.8, 0.8])
-                titles = ["時間", "場站", "車號", "描述", "填單人", "編輯", "標記"]
-                for col, title in zip(cols, titles): col.write(f"**{title}**")
+                titles = ["日期/時間", "場站", "車號", "描述摘要", "填單人", "編輯", "標記"]
+                for col, title in zip(cols, titles): col.markdown(f"**{title}**")
+                st.markdown("<hr style='margin: 2px 0; border: 1px solid #ddd;'>", unsafe_allow_html=True)
                 
                 for r_idx, r_val in reversed(display):
                     with st.container():
@@ -130,7 +130,7 @@ with tab1:
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- 📊 Tab 2: 數據統計 (Plotly 完整版) ---
+# --- 📊 Tab 2: 數據統計 (已修改圖表) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password") == "kevin198":
@@ -140,18 +140,18 @@ with tab2:
             # 指標顯示
             m1, m2, m3 = st.columns(3)
             m1.metric("總登記件數", len(df))
-            m2.metric("今日件數", len(df[df.iloc[:,0].str.contains(now_ts.strftime("%Y-%m-%d"))]))
-            m3.metric("場站總數", df.iloc[:,1].nunique())
+            m2.metric("今日案件量", len(df[df.iloc[:,0].str.contains(now_ts.strftime("%Y-%m-%d"))]))
+            m3.metric("場站數", df.iloc[:,1].nunique())
             
             st.markdown("---")
             g1, g2 = st.columns(2)
             with g1:
-                st.subheader("👤 填單人員佔比")
-                fig1 = px.pie(df, names=df.columns[7], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+                st.subheader("📂 類別案件佔比") # 已修改為類別佔比
+                fig1 = px.pie(df, names=df.columns[5], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                 st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                st.subheader("📂 案件類別佔比")
-                fig2 = px.pie(df, names=df.columns[5], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
+                st.subheader("👤 填單人員分配") 
+                fig2 = px.pie(df, names=df.columns[7], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig2, use_container_width=True)
             
             st.subheader("🏢 場站案件排行 (Top 10)")
@@ -162,4 +162,4 @@ with tab2:
             
             st.dataframe(df.iloc[::-1], use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 2/16 功能完整基準版")
+st.caption("© 2026 應安客服系統 - 2/16 終極完整基準版")
