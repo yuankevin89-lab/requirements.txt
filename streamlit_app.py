@@ -130,7 +130,7 @@ with tab1:
                         c[6].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- 📊 Tab 2: 數據統計 (案件佔比 + 場站佔比) ---
+# --- 📊 Tab 2: 數據統計強化版 ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password") == "kevin198":
@@ -144,22 +144,35 @@ with tab2:
             m3.metric("場站數", df.iloc[:,1].nunique())
             
             st.markdown("---")
+            
+            # 圓餅圖：類別佔比 vs 場站佔比
             g1, g2 = st.columns(2)
             with g1:
                 st.subheader("📂 案件類別佔比")
                 fig1 = px.pie(df, names=df.columns[5], hole=0.4, color_discrete_sequence=px.colors.qualitative.Safe)
                 st.plotly_chart(fig1, use_container_width=True)
             with g2:
-                st.subheader("🏢 場站類別佔比") # 已修改為場站佔比
+                st.subheader("🏢 場站案件佔比")
                 fig2 = px.pie(df, names=df.columns[1], hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig2, use_container_width=True)
             
-            st.subheader("🏢 場站類別排行 (Top 10)")
-            top10 = df.iloc[:, 1].value_counts().head(10).reset_index()
-            top10.columns = ['場站', '件數']
-            fig3 = px.bar(top10, x='件數', y='場站', orientation='h', color='件數', color_continuous_scale='Blues')
-            st.plotly_chart(fig3, use_container_width=True)
+            st.markdown("---")
+            
+            # 排行榜：類別排行 vs 場站排行
+            r1, r2 = st.columns(2)
+            with r1:
+                st.subheader("📊 案件類別排行 (Top 10)")
+                cat_top = df.iloc[:, 5].value_counts().head(10).reset_index()
+                cat_top.columns = ['類別', '件數']
+                fig3 = px.bar(cat_top, x='件數', y='類別', orientation='h', color='件數', color_continuous_scale='Reds')
+                st.plotly_chart(fig3, use_container_width=True)
+            with r2:
+                st.subheader("🏢 場站案件排行 (Top 10)")
+                st_top = df.iloc[:, 1].value_counts().head(10).reset_index()
+                st_top.columns = ['場站', '件數']
+                fig4 = px.bar(st_top, x='件數', y='場站', orientation='h', color='件數', color_continuous_scale='Blues')
+                st.plotly_chart(fig4, use_container_width=True)
             
             st.dataframe(df.iloc[::-1], use_container_width=True)
 
-st.caption("© 2026 應安客服系統 - 2/16 數據分析優化版")
+st.caption("© 2026 應安客服系統 - 2/16 數據強化最新基準版")
