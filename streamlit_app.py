@@ -45,7 +45,7 @@ tw_timezone = pytz.timezone('Asia/Taipei')
 # --- 2. 初始設定與資料庫連線 ---
 STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "華視電視台", "華視二", "華視三", "華視五", "文教一", "文教二", "文教三", "文教五", "文教六", "延吉場", "大安場", "信義大安", "樂業場", "四維場", "仁愛場", "濟南一", "濟南二", "松智場", "松勇二", "六合場", "統領場", "信義安和", "僑信場", "台北民生", "美麗華場", "基湖場", "北安場", "龍江場", "農安場", "民權西場", "承德場", "承德三", "大龍場", "延平北場", "雙連", "中山機車", "中山場", "南昌", "博愛", "金山", "金華", "詔安", "通化", "杭南一", "復興南", "逸仙", "興岩", "木柵", "泉州", "汀洲", "福州", "北平東", "水源", "重慶南", "西寧市場", "西園國宅", "復興北", "宏泰民生", "福善一", "石牌二", "中央北", "紅毛城", "三玉", "士林", "永平", "大龍峒社宅", "昆陽一", "洲子場", "環山", "文湖場", "民善場", "新明場", "德明研推", "東湖場", "東大門場", "其他(未登入場站)"]
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
-CATEGORY_LIST = ["繳費機故障", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "其他"] # 已增加「網路異常」
+CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "其他"] # 已將「繳費機故障」改為「繳費機異常」
 
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -86,8 +86,10 @@ with tab1:
         
         c3, c4 = st.columns(2)
         with c3:
-            # 使用變數控制選單與編輯模式下的索引
-            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d[5]) if d[5] in CATEGORY_LIST else 5)
+            # 編輯模式下，如果舊資料是「繳費機故障」，自動對應到新選項「繳費機異常」
+            d_cat = d[5]
+            if d_cat == "繳費機故障": d_cat = "繳費機異常"
+            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 5)
         with c4:
             car_num = st.text_input("車號", value=d[4])
         
@@ -217,4 +219,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 在 {start_date} 至 {end_date} 期間內查無任何報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/17 類別更新版")
+st.caption("© 2026 應安客服系統 - 2/17 更名穩定版")
