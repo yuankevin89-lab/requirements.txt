@@ -143,7 +143,6 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 重新分配欄位比例：日期, 場站, 姓名, 電話, 車號, 摘要, 填單人, 編輯, 標記
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers):
@@ -153,25 +152,19 @@ with tab1:
                 for r_idx, r_val in reversed(display_list):
                     with st.container():
                         c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                        c[0].write(r_val[0]) # 時間
-                        c[1].write(r_val[1]) # 場站
-                        c[2].write(r_val[2]) # 姓名 (新增)
-                        c[3].write(r_val[3]) # 電話 (新增)
-                        c[4].write(r_val[4]) # 車號
-                        
-                        # 懸停預覽
+                        c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
+                        c[3].write(r_val[3]); c[4].write(r_val[4])
                         clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;').replace("'", "&apos;")
                         short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
                         c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
-                        
-                        c[6].write(r_val[7]) # 填單人
+                        c[6].write(r_val[7])
                         if c[7].button("📝", key=f"ed_{r_idx}"):
                             st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                             st.rerun()
                         c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (優化圖表顯示比例) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -200,17 +193,27 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     g1, g2 = st.columns(2)
+                    
+                    # 共用圖表佈局設定：圖例移至下方以防止擠壓
+                    common_layout = dict(
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
+                        margin=dict(t=50, b=150, l=20, r=20), # 增加底部間距給圖例
+                        height=600 # 固定高度
+                    )
+
                     with g1:
                         fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別佔比分析", hole=0.4)
-                        fig1.update_traces(textinfo='label+percent', textposition='outside')
+                        fig1.update_traces(textinfo='percent', textposition='inside') # 文字放裡面減少重疊
+                        fig1.update_layout(**common_layout)
                         st.plotly_chart(fig1, use_container_width=True)
                     with g2:
                         fig2 = px.pie(wk_df, names=hdr[1], title="🏢 場站佔比分析", hole=0.4)
-                        fig2.update_traces(textinfo='label+percent', textposition='outside')
+                        fig2.update_traces(textinfo='percent', textposition='inside')
+                        fig2.update_layout(**common_layout)
                         st.plotly_chart(fig2, use_container_width=True)
                     
                     st.metric("總案件數", f"{len(wk_df)} 件")
                 else: 
                     st.warning(f"⚠️ 在 {start_date} 至 {end_date} 期間內查無任何報修資料。")
 
-st.caption("© 2026 應安客服系統")
+st.caption("© 2026 應安客服系統 - 圖表佈局優化版")
