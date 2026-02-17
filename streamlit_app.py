@@ -167,7 +167,7 @@ with tab1:
                         c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (新增各類別件數分析) ---
+# --- Tab 2: 數據統計 (新增下載 CSV 功能) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -214,25 +214,33 @@ with tab2:
                         fig2.update_layout(**common_layout)
                         st.plotly_chart(fig2, use_container_width=True)
                     
-                    # 第二列：詳細件數分析
+                    # 第二列：詳細件數分析與下載
                     st.divider()
                     st.subheader("📈 詳細數據清單")
                     m1, m2 = st.columns([1, 2])
                     
                     with m1:
                         st.metric("總案件數", f"{len(wk_df)} 件")
-                    
-                    with m2:
-                        # 核心功能：計算各類別件數並顯示
-                        st.markdown("**各類別件數統計：**")
+                        
+                        # 準備下載用的 CSV 數據
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
+                        csv_data = cat_counts.to_csv(index=False).encode('utf-8-sig')
                         
-                        # 橫向顯示或表格顯示
+                        st.download_button(
+                            label="📥 下載各類別統計 (CSV)",
+                            data=csv_data,
+                            file_name=f"應安客服類別統計_{start_date}_to_{end_date}.csv",
+                            mime="text/csv",
+                            key="download_csv"
+                        )
+                    
+                    with m2:
+                        st.markdown("**各類別件數細目：**")
                         for index, row in cat_counts.iterrows():
                             st.write(f"🔹 {row['類別']}: {row['件數']} 件")
 
                 else: 
                     st.warning(f"⚠️ 在 {start_date} 至 {end_date} 期間內查無任何報修資料。")
 
-st.caption("© 2026 應安客服系統 - 數據深度分析版")
+st.caption("© 2026 應安客服系統 - 2/17 數據導出穩定版")
