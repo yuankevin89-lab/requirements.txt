@@ -167,7 +167,7 @@ with tab1:
                         c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (新增下載 CSV 功能) ---
+# --- Tab 2: 數據統計 (新增 Plotly 統計圖表與 PNG 下載) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -179,17 +179,14 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                st.info("💡 預設顯示「上週」統計，如需特定區間請在下方選取。")
                 custom_range = st.date_input("📅 選擇指定統計週期", value=[], help="選取開始與結束日期後，系統將自動更新報表。")
                 
                 if len(custom_range) == 2:
                     start_date, end_date = custom_range
-                    st.success(f"📌 目前顯示自選區間：{start_date} ~ {end_date}")
                 else:
                     today = datetime.datetime.now(tw_timezone).date()
                     start_date = today - datetime.timedelta(days=today.weekday() + 7)
                     end_date = start_date + datetime.timedelta(days=6)
-                    st.info(f"📅 目前顯示預設區間 (上週)：{start_date} ~ {end_date}")
                 
                 wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= start_date) & (df_s[hdr[0]].dt.date <= end_date)]
 
@@ -201,46 +198,46 @@ with tab2:
                     common_layout = dict(
                         legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
                         margin=dict(t=50, b=150, l=20, r=20),
-                        height=600
+                        height=500
                     )
                     with g1:
-                        fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別佔比分析", hole=0.4)
+                        fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別比例分析", hole=0.4)
                         fig1.update_traces(textinfo='percent', textposition='inside')
                         fig1.update_layout(**common_layout)
                         st.plotly_chart(fig1, use_container_width=True)
                     with g2:
-                        fig2 = px.pie(wk_df, names=hdr[1], title="🏢 場站佔比分析", hole=0.4)
+                        fig2 = px.pie(wk_df, names=hdr[1], title="🏢 場站比例分析", hole=0.4)
                         fig2.update_traces(textinfo='percent', textposition='inside')
                         fig2.update_layout(**common_layout)
                         st.plotly_chart(fig2, use_container_width=True)
                     
-                    # 第二列：詳細件數分析與下載
+                    # 第二列：詳細數據清單改為「長條圖」以支援 PNG 下載
                     st.divider()
-                    st.subheader("📈 詳細數據清單")
-                    m1, m2 = st.columns([1, 2])
+                    st.subheader("📈 詳細數據統計 (支援 PNG 下載)")
                     
-                    with m1:
-                        st.metric("總案件數", f"{len(wk_df)} 件")
-                        
-                        # 準備下載用的 CSV 數據
-                        cat_counts = wk_df[hdr[5]].value_counts().reset_index()
-                        cat_counts.columns = ['類別', '件數']
-                        csv_data = cat_counts.to_csv(index=False).encode('utf-8-sig')
-                        
-                        st.download_button(
-                            label="📥 下載各類別統計 (CSV)",
-                            data=csv_data,
-                            file_name=f"應安客服類別統計_{start_date}_to_{end_date}.csv",
-                            mime="text/csv",
-                            key="download_csv"
-                        )
+                    # 計算數據
+                    cat_counts = wk_df[hdr[5]].value_counts().reset_index()
+                    cat_counts.columns = ['類別', '件數']
+                    cat_counts = cat_counts.sort_values(by='件數', ascending=True) # 橫向長條圖由下往上排
                     
-                    with m2:
-                        st.markdown("**各類別件數細目：**")
-                        for index, row in cat_counts.iterrows():
-                            st.write(f"🔹 {row['類別']}: {row['件數']} 件")
+                    # 建立長條圖
+                    fig_bar = px.bar(cat_counts, x='件數', y='類別', orientation='h', 
+                                     title=f"各類別件數統計 ({start_date} ~ {end_date})",
+                                     text='件數', color='件數', color_continuous_scale='Blues')
+                    
+                    fig_bar.update_traces(textposition='outside')
+                    fig_bar.update_layout(
+                        height=400,
+                        margin=dict(t=50, b=50, l=20, r=50),
+                        xaxis_title="案件數量",
+                        yaxis_title="",
+                        coloraxis_showscale=False
+                    )
+                    
+                    st.metric("總案件數", f"{len(wk_df)} 件")
+                    st.plotly_chart(fig_bar, use_container_width=True)
 
                 else: 
-                    st.warning(f"⚠️ 在 {start_date} 至 {end_date} 期間內查無任何報修資料。")
+                    st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/17 數據導出穩定版")
+st.caption("© 2026 應安客服系統 - 2/17 圖表下載優化版")
