@@ -167,7 +167,7 @@ with tab1:
                         c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                         st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (新增 Plotly 統計圖表與 PNG 下載) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -211,18 +211,16 @@ with tab2:
                         fig2.update_layout(**common_layout)
                         st.plotly_chart(fig2, use_container_width=True)
                     
-                    # 第二列：詳細數據清單改為「長條圖」以支援 PNG 下載
+                    # 第二列：詳細數據統計圖
                     st.divider()
-                    st.subheader("📈 詳細數據統計 (支援 PNG 下載)")
+                    st.subheader("📈 詳細數據統計")
                     
-                    # 計算數據
                     cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                     cat_counts.columns = ['類別', '件數']
-                    cat_counts = cat_counts.sort_values(by='件數', ascending=True) # 橫向長條圖由下往上排
+                    cat_counts = cat_counts.sort_values(by='件數', ascending=True)
                     
-                    # 建立長條圖
                     fig_bar = px.bar(cat_counts, x='件數', y='類別', orientation='h', 
-                                     title=f"各類別件數統計 ({start_date} ~ {end_date})",
+                                     title=f"各類別件數明細 ({start_date} ~ {end_date})",
                                      text='件數', color='件數', color_continuous_scale='Blues')
                     
                     fig_bar.update_traces(textposition='outside')
@@ -240,4 +238,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/17 圖表下載優化版")
+st.caption("© 2026 應安客服系統 - 標題簡化版")
