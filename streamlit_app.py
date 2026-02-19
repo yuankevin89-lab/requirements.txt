@@ -255,4 +255,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 語法修正暨統計圖表版")
+st.caption("© 2026 應安客服系統 ")
