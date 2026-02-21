@@ -43,7 +43,6 @@ st.markdown("""
 tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- 2. 初始設定與資料庫連線 ---
-# 已修復引號錯誤的完整場站清單
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -88,7 +87,8 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
-    with st.form("my_form", clear_on_submit=True):
+    # [優化核心]：移除 clear_on_submit=True，改為邏輯判斷是否重整清空
+    with st.form("my_form", clear_on_submit=False):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M:%S")
         st.info(f"🕒 案件時間：{f_dt}")
@@ -113,6 +113,7 @@ with tab1:
         
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
         submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
+        
         if st.session_state.edit_mode:
             if btn_c2.form_submit_button("❌ 取消編輯"):
                 st.session_state.edit_mode = False
@@ -130,11 +131,13 @@ with tab1:
                     st.session_state.edit_mode = False
                 else:
                     sheet.append_row(row)
+                # 只有成功後才使用 st.rerun()，這會讓整個頁面重新整理並自然清空欄位
                 st.rerun()
             else:
+                # 驗證失敗時，因為 clear_on_submit=False，使用者輸入的資料會被保留在畫面上
                 st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 ---
+    # --- 最近紀錄 (其餘功能不變) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -210,7 +213,6 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # 第一列：圓餅圖分析
                     g1, g2 = st.columns(2)
                     common_layout = dict(
                         legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
@@ -228,7 +230,6 @@ with tab2:
                         fig2.update_layout(**common_layout)
                         st.plotly_chart(fig2, use_container_width=True)
                     
-                    # 第二列：詳細數據統計圖 (支援 PNG 下載)
                     st.divider()
                     st.subheader("📈 詳細數據統計")
                     
@@ -255,4 +256,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 ")
+st.caption("© 2026 應安客服系統 - 輸入保護優化版")
