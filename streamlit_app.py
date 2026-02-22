@@ -61,7 +61,9 @@ STATION_LIST = [
 ]
 
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
-CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "其他"]
+
+# 新增「繳費問題相關」至類別清單
+CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -90,11 +92,11 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
+    # 動態 Form ID 用於成功送出後徹底清空
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
-        # [更新] 時間格式僅保留到分鐘
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
+        # 案件時間紀錄到分鐘
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
-        
         st.info(f"🕒 案件時間：{f_dt}")
         
         c1, c2 = st.columns(2)
@@ -109,7 +111,7 @@ with tab1:
         with c3:
             d_cat = d[5]
             if d_cat == "繳費機故障": d_cat = "繳費機異常"
-            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 5)
+            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 6)
         with c4:
             car_num = st.text_input("車號", value=d[4])
         
@@ -138,7 +140,7 @@ with tab1:
                 else:
                     sheet.append_row(row)
                 
-                # 成功送出後，更換 ID 強制物理清空表單
+                # 成功送出後更換 ID，強制清空所有欄位
                 st.session_state.form_id += 1 
                 st.rerun()
             else:
@@ -263,4 +265,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 時間格式精簡版")
+st.caption("© 2026 應安客服系統 - 2/22 類別更新版")
