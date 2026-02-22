@@ -78,7 +78,7 @@ sheet = client.open("客服作業表").sheet1 if client else None
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
 if "form_id" not in st.session_state:
-    st.session_state.form_id = 0  # 用於強制重置表單
+    st.session_state.form_id = 0
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
@@ -90,10 +90,11 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
-    # [核心變動]：使用動態 key 綁定表單，成功時變更 key 即可物理清空
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
+        # [更新] 時間格式僅保留到分鐘
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
-        f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M:%S")
+        f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
+        
         st.info(f"🕒 案件時間：{f_dt}")
         
         c1, c2 = st.columns(2)
@@ -121,7 +122,7 @@ with tab1:
             if btn_c2.form_submit_button("❌ 取消編輯"):
                 st.session_state.edit_mode = False
                 st.session_state.edit_data = [""]*8
-                st.session_state.form_id += 1 # 強制清空
+                st.session_state.form_id += 1
                 st.rerun()
         else:
             btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
@@ -137,11 +138,10 @@ with tab1:
                 else:
                     sheet.append_row(row)
                 
-                # [關鍵修正]：成功後更換 form_id，這會強制讓 Streamlit 重新渲染一個乾淨的表單
+                # 成功送出後，更換 ID 強制物理清空表單
                 st.session_state.form_id += 1 
                 st.rerun()
             else:
-                # 驗證失敗：不更換 form_id，原本輸入的東西會因為 clear_on_submit=False 而留下
                 st.error("請正確選擇填單人與場站")
 
     # --- 最近紀錄 ---
@@ -263,4 +263,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/21 終極強制清空版")
+st.caption("© 2026 應安客服系統 - 時間格式精簡版")
