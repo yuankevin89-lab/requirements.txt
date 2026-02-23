@@ -112,13 +112,23 @@ with tab1:
         
         description = st.text_area("描述內容", value=d[6])
         
-        btn_c1, btn_c2, _, _ = st.columns([1, 1, 1, 3])
-        submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
+        # 按鈕佈局：送出、多元支付、簡訊、取消
+        btn_cols = st.columns([1, 1, 1, 1, 2])
+        submit_btn = btn_cols[0].form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
         
-        # [補回] 取消編輯按鈕
+        # [補回] 多元支付連結
+        if btn_cols[1].form_submit_button("多元支付"):
+             st.markdown('<meta http-equiv="refresh" content="0;url=http://219.85.163.90:5010/">', unsafe_allow_html=True)
+             st.link_button("👉 點此前往多元支付", "http://219.85.163.90:5010/")
+
+        # [補回] 簡訊選項
+        sms_btn = btn_cols[2].form_submit_button("發送簡訊")
+        if sms_btn:
+            st.toast("簡訊發送功能已觸發 (預留接口)")
+
+        # 取消編輯按鈕
         if st.session_state.edit_mode:
-            cancel_btn = btn_c2.form_submit_button("取消編輯")
-            if cancel_btn:
+            if btn_cols[3].form_submit_button("取消編輯"):
                 st.session_state.edit_mode = False
                 st.session_state.form_id += 1
                 st.rerun()
@@ -142,18 +152,11 @@ with tab1:
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
-            valid_rows = []
-            for i, r in enumerate(all_raw[1:]):
-                if any(str(c).strip() for c in r):
-                    valid_rows.append((i+2, r))
-            
+            valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
             search_q = st.text_input("🔍 搜尋歷史紀錄", placeholder="輸入關鍵字...").strip().lower()
             display_list = []
-            
             if search_q:
-                for idx, r in valid_rows:
-                    if any(search_q in str(cell).lower().strip() for cell in r if str(cell).strip()):
-                        display_list.append((idx, r))
+                display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
             else:
                 display_list = valid_rows[-3:]
 
@@ -172,11 +175,10 @@ with tab1:
                     if c[7].button("📝", key=f"ed_{r_idx}"):
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
-                    # [補回] 最右側勾選框
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (維持 4K 兼顧邏輯) ---
+# --- Tab 2: 數據統計 (4K 穩定基準) ---
 with tab2:
     st.title("📊 數據統計分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -197,31 +199,15 @@ with tab2:
 
                 if not wk_df.empty:
                     st.divider()
-                    
-                    config_smart_4k = {
-                        'toImageButtonOptions': {
-                            'format': 'png',
-                            'filename': '應安4K投影報表',
-                            'height': 1080,
-                            'width': 1920,
-                            'scale': 4
-                        }
-                    }
-                    
+                    config_smart_4k = {'toImageButtonOptions': {'format': 'png','filename': '應安4K投影報表','height': 1080,'width': 1920,'scale': 4}}
                     def apply_balanced_layout(fig, title_text):
                         fig.update_layout(
                             font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
                             title=dict(text=title_text, font=dict(size=22, color='#000000')),
-                            paper_bgcolor='white',
-                            plot_bgcolor='white',
-                            margin=dict(t=80, b=100, l=60, r=40),
-                            showlegend=False,
-                            autosize=True
+                            paper_bgcolor='white', plot_bgcolor='white', margin=dict(t=80, b=100, l=60, r=40),
+                            showlegend=False, autosize=True
                         )
-                        fig.update_traces(
-                            textfont=dict(size=20, color="#000000", family="Arial Black"),
-                            textposition='outside'
-                        )
+                        fig.update_traces(textfont=dict(size=20, color="#000000", family="Arial Black"), textposition='outside')
                         fig.update_xaxes(tickfont=dict(size=14, color="#000000"), gridcolor="#EEEEEE")
                         fig.update_yaxes(tickfont=dict(size=14, color="#000000"), gridcolor="#EEEEEE")
                         return fig
@@ -230,25 +216,20 @@ with tab2:
                     with g1:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
-                        fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1 = apply_balanced_layout(fig1, "📂 客服案件類別分佈")
+                        fig1 = apply_balanced_layout(px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold), "📂 客服案件類別分佈")
                         st.plotly_chart(fig1, use_container_width=True, config=config_smart_4k)
-                    
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
-                        fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2 = apply_balanced_layout(fig2, "🏢 場站排名 (Top 10)")
+                        fig2 = apply_balanced_layout(px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique), "🏢 場站排名 (Top 10)")
                         fig2.update_xaxes(tickangle=35)
                         st.plotly_chart(fig2, use_container_width=True, config=config_smart_4k)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
-                    fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo')
-                    fig_bar = apply_balanced_layout(fig_bar, "案件類別精確對比")
+                    fig_bar = apply_balanced_layout(px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo'), "案件類別精確對比")
                     fig_bar.update_layout(margin=dict(l=200, r=80, t=80, b=80))
-                    
                     st.metric("總案件數", f"{len(wk_df)} 件")
                     st.plotly_chart(fig_bar, use_container_width=True, config=config_smart_4k)
 
-st.caption("© 2026 應安客服系統 ")
+st.caption("© 2026 應安客服系統 - 功能全補回穩定版")
