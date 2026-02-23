@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 
-# --- 1. 頁面基本設定與樣式 ---
+# --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
 st.markdown("""
@@ -17,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
-    /* [功能] 標記變色樣式 - 勾選後整行顯色 */
+    /* [功能] 標記變色樣式 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -74,6 +74,7 @@ def init_connection():
 client = init_connection()
 sheet = client.open("客服作業表").sheet1 if client else None
 
+# 初始化狀態
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
 if "form_id" not in st.session_state:
@@ -91,6 +92,7 @@ with tab1:
 
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
+        # 案件時間紀錄至分鐘
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
         st.info(f"🕒 案件時間：{f_dt}")
         
@@ -112,43 +114,30 @@ with tab1:
         
         description = st.text_area("描述內容", value=d[6])
         
-        # --- 按鈕區塊：恢復 2/23 以前的全功能佈局 ---
-        btn_cols = st.columns([1.2, 1.2, 1.2, 1.2, 2.5])
+        btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
+        submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
         
-        # 1. 確認送出 / 更新按鈕
-        submit_btn = btn_cols[0].form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
-        
-        # 2. 多元支付按鈕
-        pay_btn = btn_cols[1].form_submit_button("多元支付")
-        if pay_btn:
-            st.markdown('<meta http-equiv="refresh" content="0;url=http://219.85.163.90:5010/">', unsafe_allow_html=True)
-            st.info("🔄 正在跳轉多元支付系統...")
-
-        # 3. 發送簡訊按鈕 [補回]
-        sms_btn = btn_cols[2].form_submit_button("發送簡訊")
-        if sms_btn:
-            if caller_phone.strip():
-                st.toast(f"📩 正在準備傳送簡訊至: {caller_phone}")
-                # 預留簡訊 API 對接處
-            else:
-                st.error("請先輸入電話號碼再點擊發送簡訊")
-
-        # 4. 取消編輯按鈕
         if st.session_state.edit_mode:
-            cancel_btn = btn_cols[3].form_submit_button("取消編輯")
-            if cancel_btn:
+            if btn_c2.form_submit_button("❌ 取消編輯"):
                 st.session_state.edit_mode = False
+                st.session_state.edit_data = [""]*8
                 st.session_state.form_id += 1
                 st.rerun()
-        
+        else:
+            btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
+        btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
+
         if submit_btn:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
                     st.session_state.edit_mode = False
+                    st.session_state.edit_data = [""]*8
                 else:
                     sheet.append_row(row)
+                
+                # 成功送出後更換 ID，強制清空欄位
                 st.session_state.form_id += 1 
                 st.rerun()
             else:
@@ -160,39 +149,53 @@ with tab1:
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
-            valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
-            search_q = st.text_input("🔍 搜尋歷史紀錄", placeholder="輸入關鍵字...").strip().lower()
+            valid_rows = []
+            for i, r in enumerate(all_raw[1:]):
+                if any(str(c).strip() for c in r):
+                    valid_rows.append((i+2, r))
+            
+            search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", placeholder="輸入關鍵字...").strip().lower()
+            
+            eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
+            
             if search_q:
-                display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
+                for idx, r in valid_rows:
+                    if any(search_q in str(cell).lower().strip() for cell in r if str(cell).strip()):
+                        display_list.append((idx, r))
             else:
-                display_list = valid_rows[-3:]
+                for idx, r in valid_rows:
+                    try:
+                        dt = pd.to_datetime(r[0]).replace(tzinfo=None)
+                        if dt >= eight_hrs_ago: display_list.append((idx, r))
+                    except: continue
+                if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 建立表頭
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers):
                     col.markdown(f"**{t}**")
+                st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
                 
                 for r_idx, r_val in reversed(display_list):
-                    c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                    c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
-                    c[3].write(r_val[3]); c[4].write(r_val[4])
-                    clean_d = r_val[6].replace('\n', ' ')
-                    short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
-                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
-                    c[6].write(r_val[7])
-                    if c[7].button("📝", key=f"ed_{r_idx}"):
-                        st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
-                        st.rerun()
-                    # 補回最右邊勾選框
-                    c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
-                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+                    with st.container():
+                        c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
+                        c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
+                        c[3].write(r_val[3]); c[4].write(r_val[4])
+                        clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;').replace("'", "&apos;")
+                        short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
+                        c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
+                        c[6].write(r_val[7])
+                        if c[7].button("📝", key=f"ed_{r_idx}"):
+                            st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
+                            st.rerun()
+                        c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
+                        st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (維持 4K 下載強化邏輯) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
-    st.title("📊 數據統計分析")
+    st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -202,44 +205,70 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                today = datetime.datetime.now(tw_timezone).date()
-                custom_range = st.date_input("📅 選擇統計週期", value=[today - datetime.timedelta(days=7), today])
+                custom_range = st.date_input("📅 選擇指定統計週期", value=[], help="選取開始與結束日期後，系統將自動更新報表。")
+                
                 if len(custom_range) == 2:
-                    wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= custom_range[0]) & (df_s[hdr[0]].dt.date <= custom_range[1])]
+                    start_date, end_date = custom_range
                 else:
-                    wk_df = df_s.tail(50)
+                    today = datetime.datetime.now(tw_timezone).date()
+                    start_date = today - datetime.timedelta(days=today.weekday() + 7)
+                    end_date = start_date + datetime.timedelta(days=6)
+                
+                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= start_date) & (df_s[hdr[0]].dt.date <= end_date)]
 
                 if not wk_df.empty:
                     st.divider()
-                    config_smart_4k = {'toImageButtonOptions': {'format': 'png','filename': '應安4K投影報表','height': 1080,'width': 1920,'scale': 4}}
-                    def apply_balanced_layout(fig, title_text):
-                        fig.update_layout(
-                            font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
-                            title=dict(text=title_text, font=dict(size=22, color='#000000')),
-                            paper_bgcolor='white', plot_bgcolor='white', margin=dict(t=80, b=100, l=60, r=40),
-                            showlegend=False, autosize=True
-                        )
-                        fig.update_traces(textfont=dict(size=20, color="#000000", family="Arial Black"), textposition='outside')
-                        fig.update_xaxes(tickfont=dict(size=14, color="#000000"), gridcolor="#EEEEEE")
-                        fig.update_yaxes(tickfont=dict(size=14, color="#000000"), gridcolor="#EEEEEE")
-                        return fig
-
+                    
                     g1, g2 = st.columns(2)
+                    common_layout = dict(
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
+                        margin=dict(t=50, b=150, l=20, r=20),
+                        height=550
+                    )
+                    
                     with g1:
-                        cat_data = wk_df[hdr[5]].value_counts().reset_index()
-                        cat_data.columns = ['類別', '件數']
-                        st.plotly_chart(apply_balanced_layout(px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold), "📂 客服案件類別分佈"), use_container_width=True, config=config_smart_4k)
+                        fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別比例分析", hole=0.4)
+                        fig1.update_traces(textinfo='percent', textposition='inside')
+                        fig1.update_layout(**common_layout)
+                        st.plotly_chart(fig1, use_container_width=True)
+                    
                     with g2:
-                        st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
+                        # [修正邏輯] 場站比例分析：僅顯示前十名，其餘拿掉
+                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']
-                        fig2 = apply_balanced_layout(px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique), "🏢 場站排名 (Top 10)")
-                        fig2.update_xaxes(tickangle=35)
-                        st.plotly_chart(fig2, use_container_width=True, config=config_smart_4k)
+                        
+                        # 僅保留前 10 名數據，不進行「其他」歸類
+                        plot_df = st_counts.head(10)
+                            
+                        fig2 = px.pie(plot_df, values='件數', names='場站', title="🏢 場站比例分析 (Top 10)", hole=0.4)
+                        fig2.update_traces(textinfo='percent', textposition='inside')
+                        fig2.update_layout(**common_layout)
+                        st.plotly_chart(fig2, use_container_width=True)
                     
                     st.divider()
-                    fig_bar = apply_balanced_layout(px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo'), "📊 案件類別精確對比")
-                    fig_bar.update_layout(margin=dict(l=200, r=80, t=80, b=80))
+                    st.subheader("📈 詳細數據統計")
+                    
+                    cat_counts = wk_df[hdr[5]].value_counts().reset_index()
+                    cat_counts.columns = ['類別', '件數']
+                    cat_counts = cat_counts.sort_values(by='件數', ascending=True)
+                    
+                    fig_bar = px.bar(cat_counts, x='件數', y='類別', orientation='h', 
+                                     title=f"各類別件數明細 ({start_date} ~ {end_date})",
+                                     text='件數', color='件數', color_continuous_scale='Blues')
+                    
+                    fig_bar.update_traces(textposition='outside')
+                    fig_bar.update_layout(
+                        height=400,
+                        margin=dict(t=50, b=50, l=20, r=50),
+                        xaxis_title="案件數量",
+                        yaxis_title="",
+                        coloraxis_showscale=False
+                    )
+                    
                     st.metric("總案件數", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_smart_4k)
+                    st.plotly_chart(fig_bar, use_container_width=True)
 
-st.caption("© 2026 應安客服系統 ")
+                else: 
+                    st.warning(f"⚠️ 查無報修資料。")
+
+st.caption("© 2026 應安客服系統 - 2/23 Top 10 鎖定版")
