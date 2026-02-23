@@ -81,7 +81,7 @@ if "form_id" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 ---
+# --- Tab 1: 案件登記 (邏輯維持 2/23 基準) ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (4K 投影優化版) ---
 with tab2:
-    st.title("📊 數據統計與分析")
+    st.title("📊 數據統計與分析 (4K 投影極致版)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,59 +198,78 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # 統一 1080P 高清下載設定
-                    config_1080 = {
+                    # [高階設定] 4K 極致下載配置
+                    config_4k = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安統計報表',
-                            'height': 1080,
-                            'width': 1920,
-                            'scale': 3
-                        }
+                            'filename': '應安超高清投影報表',
+                            'height': 2160, # 4K 高度
+                            'width': 3840,  # 4K 寬度
+                            'scale': 4      # 4倍採樣抗鋸齒
+                        },
+                        'displayModeBar': True
                     }
+                    
+                    # 投影專用配置：加粗所有文字、極大化對比
+                    projector_layout = dict(
+                        font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"), # 強制深黑加粗字體
+                        title_font=dict(size=32, color='#004080'), # 標題加大
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5, font=dict(size=18)),
+                        margin=dict(t=100, b=150, l=50, r=50),
+                        height=700
+                    )
                     
                     g1, g2 = st.columns(2)
                     with g1:
-                        # 類別比例分析
                         fig1 = px.pie(wk_df, names=hdr[5], title="📂 客服案件類別比例", hole=0.4,
-                                     color_discrete_sequence=px.colors.qualitative.Dark24)
-                        fig1.update_traces(textinfo='percent+label', textfont_size=16)
-                        fig1.update_layout(title_font_size=26, legend_font_size=14, height=650)
-                        st.plotly_chart(fig1, use_container_width=True, config=config_1080)
+                                     color_discrete_sequence=px.colors.qualitative.Bold) # 使用 Bold 色系
+                        fig1.update_traces(
+                            textinfo='percent+label', 
+                            textfont=dict(size=20, color='white', family="Arial Black"), # 數字加大加粗
+                            marker=dict(line=dict(color='#000000', width=2)) # 邊框黑線增加對比
+                        )
+                        fig1.update_layout(**projector_layout)
+                        st.plotly_chart(fig1, use_container_width=True, config=config_4k)
                     
                     with g2:
-                        # 場站比例分析 (僅 Top 10)
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.pie(st_counts, values='件數', names='場站', title="🏢 場站負擔比例 (Top 10)", hole=0.4,
-                                     color_discrete_sequence=px.colors.qualitative.Prism)
-                        fig2.update_traces(textinfo='percent+label', textfont_size=16)
-                        fig2.update_layout(title_font_size=26, legend_font_size=14, height=650)
-                        st.plotly_chart(fig2, use_container_width=True, config=config_1080)
+                                     color_discrete_sequence=px.colors.qualitative.Vivid) # 高彩度色系
+                        fig2.update_traces(
+                            textinfo='percent+label', 
+                            textfont=dict(size=20, color='white', family="Arial Black"),
+                            marker=dict(line=dict(color='#000000', width=2))
+                        )
+                        fig2.update_layout(**projector_layout)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_4k)
                     
                     st.divider()
-                    st.subheader("📈 詳細案件量統計")
-                    # 詳細數據統計圖表優化
+                    st.subheader("📊 詳細案件量統計")
                     cat_counts = wk_df[hdr[5]].value_counts().reset_index().sort_values('count', ascending=True)
                     cat_counts.columns = ['類別', '件數']
                     
                     fig_bar = px.bar(cat_counts, x='件數', y='類別', orientation='h', 
-                                     title="各類別案件明細", text='件數',
-                                     color='件數', color_continuous_scale='GnBu_r')
-                    fig_bar.update_traces(textposition='outside', textfont_size=18)
+                                     title="各類別案件明細統計", text='件數',
+                                     color='件數', color_continuous_scale='Turbo') # 使用高動態範圍 Turbo 色系
                     
-                    # 修正可能造成 ValueError 的 layout 結構
+                    fig_bar.update_traces(
+                        textposition='outside', 
+                        textfont=dict(size=22, color='#000000', family="Arial Black"),
+                        marker_line_color='#000000',
+                        marker_line_width=2
+                    )
                     fig_bar.update_layout(
-                        title_font_size=26,
-                        xaxis_title="案件數量",
-                        xaxis_title_font_size=18,
-                        yaxis_title="",
-                        height=550,
+                        font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
+                        title_font_size=32,
+                        xaxis=dict(title="案件數量", title_font_size=20, tickfont_size=18, gridcolor='#E0E0E0'),
+                        yaxis=dict(title="", tickfont_size=18),
+                        height=600,
                         margin=dict(l=20, r=100, t=100, b=50)
                     )
-                    st.metric("總案件數 (選定區間)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_1080)
+                    st.metric("總案件數 (選定範圍)", f"{len(wk_df)} 件")
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k)
                 else:
-                    st.warning("⚠️ 查無報修資料。")
+                    st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/23 穩定高清 1080P 版")
+st.caption("© 2026 應安客服系統 - 4K 投影極致優化版")
