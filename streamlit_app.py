@@ -233,17 +233,12 @@ with tab2:
                         st.plotly_chart(fig1, use_container_width=True)
                     
                     with g2:
-                        # [修正邏輯] 場站比例分析：僅顯示前十名
+                        # [修正邏輯] 場站比例分析：僅顯示前十名，其餘拿掉
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']
                         
-                        if len(st_counts) > 10:
-                            top_10 = st_counts.head(10)
-                            others_count = st_counts.iloc[10:]['件數'].sum()
-                            others_df = pd.DataFrame([['其他場站', others_count]], columns=['場站', '件數'])
-                            plot_df = pd.concat([top_10, others_df])
-                        else:
-                            plot_df = st_counts
+                        # 僅保留前 10 名數據，不進行「其他」歸類
+                        plot_df = st_counts.head(10)
                             
                         fig2 = px.pie(plot_df, values='件數', names='場站', title="🏢 場站比例分析 (Top 10)", hole=0.4)
                         fig2.update_traces(textinfo='percent', textposition='inside')
@@ -276,4 +271,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/23 圖表優化版")
+st.caption("© 2026 應安客服系統 - 2/23 Top 10 鎖定版")
