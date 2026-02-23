@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (完美兼顧下載版) ---
+# --- Tab 2: 數據統計 (兼顧網頁與 4K 下載之最終代碼) ---
 with tab2:
-    st.title("📊 數據統計分析 (4K 下載同步優化)")
+    st.title("📊 數據統計與分析 (4K 下載同步強化版)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,36 +198,40 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [關鍵下載設定]
-                    # 網頁版字體適中，下載版放大 3 倍
-                    download_config = {
+                    # [關鍵配置]：這套設定會「覆蓋」下載時的樣式
+                    # 我們手動將字體像素值拉到極大，以適配 3840px 的寬度
+                    config_4k_lock = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安4K投影專用圖表',
+                            'filename': '應安4K投影報表',
                             'height': 2160,
                             'width': 3840,
-                            'scale': 3 # 核心：下載時自動將所有比例放大 3 倍
+                            'scale': 1 # 4K 下我們直接用絕對字體大小控制
                         }
                     }
                     
-                    # 通用佈局：確保線上版舒適，並移除圖例以爭取空間
-                    def apply_custom_layout(fig, title_text):
+                    # 線上版佈局：確保網頁端看起來正常
+                    def apply_web_layout(fig, title_text):
                         fig.update_layout(
-                            font=dict(family="Arial Black, Microsoft JhengHei", size=22, color="#000000"), # 線上版字體
-                            title=dict(text=title_text, font=dict(size=32, color='#000000')),
+                            font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
+                            title=dict(text=title_text, font=dict(size=24)),
                             paper_bgcolor='white',
                             plot_bgcolor='white',
-                            margin=dict(t=100, b=150, l=80, r=50), # 預留底部給 X 軸標籤
+                            margin=dict(t=80, b=120, l=60, r=40),
                             showlegend=False,
-                            height=600 # 線上固定高度，確保不變形
+                            height=550
+                        )
+                        # 重點：針對下載時的佈局注入 (Plotly 會自動將這些套用到下載圖片)
+                        fig.update_layout(
+                            template="plotly_white",
+                            title_font_size=80, # 下載時標題會變這麼大
                         )
                         fig.update_traces(
-                            textfont=dict(size=24, color="#000000", family="Arial Black"),
-                            textposition='outside',
-                            marker_line_width=0
+                            textfont=dict(size=50, color="#000000", family="Arial Black"), # 下載數據標籤
+                            textposition='outside'
                         )
-                        fig.update_xaxes(tickfont=dict(size=18, color="#000000"), title_font_size=20, gridcolor="#EEEEEE")
-                        fig.update_yaxes(tickfont=dict(size=18, color="#000000"), title_font_size=20, gridcolor="#EEEEEE")
+                        fig.update_xaxes(tickfont=dict(size=35, color="#000000"), gridcolor="#EEEEEE")
+                        fig.update_yaxes(tickfont=dict(size=35, color="#000000"), gridcolor="#EEEEEE")
                         return fig
 
                     g1, g2 = st.columns(2)
@@ -235,27 +239,29 @@ with tab2:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
                         fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1 = apply_custom_layout(fig1, "📂 客服案件類別分佈")
-                        st.plotly_chart(fig1, use_container_width=True, config=download_config)
+                        fig1 = apply_web_layout(fig1, "📂 客服案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_4k_lock)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2 = apply_custom_layout(fig2, "🏢 場站排名 (Top 10)")
+                        fig2 = apply_web_layout(fig2, "🏢 場站排名 (Top 10)")
                         fig2.update_xaxes(tickangle=35)
-                        st.plotly_chart(fig2, use_container_width=True, config=download_config)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_4k_lock)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
                     fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', 
                                      text='件數', color='件數', color_continuous_scale='Turbo')
-                    fig_bar = apply_custom_layout(fig_bar, "案件類別精確對比")
-                    fig_bar.update_layout(margin=dict(l=220, r=100, t=100, b=100), height=700)
+                    fig_bar = apply_web_layout(fig_bar, "案件類別精確對比")
+                    fig_bar.update_layout(margin=dict(l=250, r=100, t=100, b=100), height=700)
+                    # 水平圖下載字體微調
+                    fig_bar.update_yaxes(tickfont=dict(size=38))
                     
                     st.metric("總案件數 (選定範圍)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=download_config)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_lock)
                 else:
                     st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 4K 下載同步強化版")
+st.caption("© 2026 應安客服系統 - 4K 下載投影同步強化版 (2/24 最終修正)")
