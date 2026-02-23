@@ -5,7 +5,6 @@ import datetime
 import pandas as pd
 import pytz
 import plotly.express as px
-import plotly.graph_objects as go
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -75,7 +74,6 @@ def init_connection():
 client = init_connection()
 sheet = client.open("客服作業表").sheet1 if client else None
 
-# 初始化狀態
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
 if "form_id" not in st.session_state:
@@ -117,23 +115,12 @@ with tab1:
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
         submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
         
-        if st.session_state.edit_mode:
-            if btn_c2.form_submit_button("❌ 取消編輯"):
-                st.session_state.edit_mode = False
-                st.session_state.edit_data = [""]*8
-                st.session_state.form_id += 1
-                st.rerun()
-        else:
-            btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
-        btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
-
         if submit_btn:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
                     st.session_state.edit_mode = False
-                    st.session_state.edit_data = [""]*8
                 else:
                     sheet.append_row(row)
                 st.session_state.form_id += 1 
@@ -152,7 +139,7 @@ with tab1:
                 if any(str(c).strip() for c in r):
                     valid_rows.append((i+2, r))
             
-            search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", placeholder="輸入關鍵字...").strip().lower()
+            search_q = st.text_input("🔍 搜尋歷史紀錄", placeholder="輸入關鍵字...").strip().lower()
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
             
@@ -170,24 +157,21 @@ with tab1:
 
             if display_list:
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
-                for col, t in zip(cols, headers):
+                for col, t in zip(cols, ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]):
                     col.markdown(f"**{t}**")
-                st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
                 for r_idx, r_val in reversed(display_list):
-                    with st.container():
-                        c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                        c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
-                        c[3].write(r_val[3]); c[4].write(r_val[4])
-                        clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;').replace("'", "&apos;")
-                        short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
-                        c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
-                        c[6].write(r_val[7])
-                        if c[7].button("📝", key=f"ed_{r_idx}"):
-                            st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
-                            st.rerun()
-                        c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
-                        st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+                    c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
+                    c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
+                    c[3].write(r_val[3]); c[4].write(r_val[4])
+                    clean_d = r_val[6].replace('\n', ' ')
+                    short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
+                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
+                    c[6].write(r_val[7])
+                    if c[7].button("📝", key=f"ed_{r_idx}"):
+                        st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
+                        st.rerun()
+                    c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
+                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
 # --- Tab 2: 數據統計 ---
 with tab2:
@@ -201,106 +185,72 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                custom_range = st.date_input("📅 選擇指定統計週期", value=[], help="選取開始與結束日期後更新報表。")
+                custom_range = st.date_input("📅 選擇統計週期", value=[])
                 if len(custom_range) == 2:
                     start_date, end_date = custom_range
                 else:
                     today = datetime.datetime.now(tw_timezone).date()
-                    start_date = today - datetime.timedelta(days=today.weekday() + 7)
-                    end_date = start_date + datetime.timedelta(days=6)
+                    start_date = today - datetime.timedelta(days=7)
+                    end_date = today
                 
                 wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= start_date) & (df_s[hdr[0]].dt.date <= end_date)]
 
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [高對比與高解析度設定]
-                    # 解析度設為 1920x1080 (1080p)，Scale 為 3 倍確保印刷與投影品質
-                    chart_config = {
+                    # 統一 1080P 高清下載設定
+                    config_1080 = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安報表_1080P',
+                            'filename': '應安統計報表',
                             'height': 1080,
                             'width': 1920,
                             'scale': 3
                         }
                     }
                     
-                    # 統一版面配置：加大標題與字體對比
-                    common_layout = dict(
-                        font=dict(family="Arial, Microsoft JhengHei", color="#2c3e50"),
-                        title=dict(font=dict(size=26, color='#1a5276', family="Arial Black")),
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.4, xanchor="center", x=0.5, font=dict(size=16)),
-                        margin=dict(t=100, b=150, l=40, r=40),
-                        paper_bgcolor='white',
-                        plot_bgcolor='white',
-                        height=650
-                    )
-                    
                     g1, g2 = st.columns(2)
                     with g1:
-                        # 類別比例：使用高對比 Dark24 色系
-                        fig1 = px.pie(wk_df, names=hdr[5], title="📂 客服案件類別比例", hole=0.45,
+                        # 類別比例分析
+                        fig1 = px.pie(wk_df, names=hdr[5], title="📂 客服案件類別比例", hole=0.4,
                                      color_discrete_sequence=px.colors.qualitative.Dark24)
-                        fig1.update_traces(
-                            textinfo='percent+label', 
-                            textposition='inside',
-                            textfont=dict(size=16, color='white'),
-                            marker=dict(line=dict(color='#FFFFFF', width=2))
-                        )
-                        fig1.update_layout(**common_layout)
-                        st.plotly_chart(fig1, use_container_width=True, config=chart_config)
+                        fig1.update_traces(textinfo='percent+label', textfont_size=16)
+                        fig1.update_layout(title_font_size=26, legend_font_size=14, height=650)
+                        st.plotly_chart(fig1, use_container_width=True, config=config_1080)
                     
                     with g2:
-                        # 場站比例：僅 Top 10，高對比色彩
-                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
+                        # 場站比例分析 (僅 Top 10)
+                        st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
-                        plot_df = st_counts.head(10)
-                        
-                        fig2 = px.pie(plot_df, values='件數', names='場站', title="🏢 場站負擔比例 (Top 10)", hole=0.45,
+                        fig2 = px.pie(st_counts, values='件數', names='場站', title="🏢 場站負擔比例 (Top 10)", hole=0.4,
                                      color_discrete_sequence=px.colors.qualitative.Prism)
-                        fig2.update_traces(
-                            textinfo='percent+label', 
-                            textposition='inside',
-                            textfont=dict(size=16, color='white'),
-                            marker=dict(line=dict(color='#FFFFFF', width=2))
-                        )
-                        fig2.update_layout(**common_layout)
-                        st.plotly_chart(fig2, use_container_width=True, config=chart_config)
+                        fig2.update_traces(textinfo='percent+label', textfont_size=16)
+                        fig2.update_layout(title_font_size=26, legend_font_size=14, height=650)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_1080)
                     
                     st.divider()
-                    st.subheader("📊 詳細案件量統計")
-                    
-                    cat_counts = wk_df[hdr[5]].value_counts().reset_index()
+                    st.subheader("📈 詳細案件量統計")
+                    # 詳細數據統計圖表優化
+                    cat_counts = wk_df[hdr[5]].value_counts().reset_index().sort_values('count', ascending=True)
                     cat_counts.columns = ['類別', '件數']
-                    cat_counts = cat_counts.sort_values(by='件數', ascending=True)
                     
-                    # 長條圖：使用由淺入深的對比色
                     fig_bar = px.bar(cat_counts, x='件數', y='類別', orientation='h', 
-                                     title=f"各類別案件明細 ({start_date} ~ {end_date})",
-                                     text='件數', color='件數', color_continuous_scale='GnBu_r')
+                                     title="各類別案件明細", text='件數',
+                                     color='件數', color_continuous_scale='GnBu_r')
+                    fig_bar.update_traces(textposition='outside', textfont_size=18)
                     
-                    fig_bar.update_traces(
-                        textposition='outside', 
-                        textfont=dict(size=18, color='#1a5276'),
-                        marker_line_color='rgb(8,48,107)',
-                        marker_line_width=1.5
-                    )
+                    # 修正可能造成 ValueError 的 layout 結構
                     fig_bar.update_layout(
+                        title_font_size=26,
+                        xaxis_title="案件數量",
+                        xaxis_title_font_size=18,
+                        yaxis_title="",
                         height=550,
-                        title=dict(font=dict(size=26, color='#1a5276')),
-                        margin=dict(t=100, b=50, l=20, r=100),
-                        xaxis=dict(title="案件數量", titlefont=dict(size=18), tickfont=dict(size=16), gridcolor='#f0f0f0'),
-                        yaxis=dict(title="", tickfont=dict(size=16)),
-                        coloraxis_showscale=False,
-                        paper_bgcolor='white',
-                        plot_bgcolor='white'
+                        margin=dict(l=20, r=100, t=100, b=50)
                     )
-                    
                     st.metric("總案件數 (選定區間)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=chart_config)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_1080)
+                else:
+                    st.warning("⚠️ 查無報修資料。")
 
-                else: 
-                    st.warning(f"⚠️ 查無報修資料。")
-
-st.caption("© 2026 應安客服系統 - 1080P 高對比投影優化版")
+st.caption("© 2026 應安客服系統 - 2/23 穩定高清 1080P 版")
