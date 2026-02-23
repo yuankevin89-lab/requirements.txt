@@ -17,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
-    /* [功能] 標記變色樣式 */
+    /* [功能] 標記變色樣式 - 勾選後整行顯色 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -112,23 +112,31 @@ with tab1:
         
         description = st.text_area("描述內容", value=d[6])
         
-        # 按鈕佈局：送出、多元支付、簡訊、取消
-        btn_cols = st.columns([1, 1, 1, 1, 2])
+        # --- 按鈕區塊：恢復 2/23 以前的全功能佈局 ---
+        btn_cols = st.columns([1.2, 1.2, 1.2, 1.2, 2.5])
+        
+        # 1. 確認送出 / 更新按鈕
         submit_btn = btn_cols[0].form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
         
-        # [補回] 多元支付連結
-        if btn_cols[1].form_submit_button("多元支付"):
-             st.markdown('<meta http-equiv="refresh" content="0;url=http://219.85.163.90:5010/">', unsafe_allow_html=True)
-             st.link_button("👉 點此前往多元支付", "http://219.85.163.90:5010/")
+        # 2. 多元支付按鈕
+        pay_btn = btn_cols[1].form_submit_button("多元支付")
+        if pay_btn:
+            st.markdown('<meta http-equiv="refresh" content="0;url=http://219.85.163.90:5010/">', unsafe_allow_html=True)
+            st.info("🔄 正在跳轉多元支付系統...")
 
-        # [補回] 簡訊選項
+        # 3. 發送簡訊按鈕 [補回]
         sms_btn = btn_cols[2].form_submit_button("發送簡訊")
         if sms_btn:
-            st.toast("簡訊發送功能已觸發 (預留接口)")
+            if caller_phone.strip():
+                st.toast(f"📩 正在準備傳送簡訊至: {caller_phone}")
+                # 預留簡訊 API 對接處
+            else:
+                st.error("請先輸入電話號碼再點擊發送簡訊")
 
-        # 取消編輯按鈕
+        # 4. 取消編輯按鈕
         if st.session_state.edit_mode:
-            if btn_cols[3].form_submit_button("取消編輯"):
+            cancel_btn = btn_cols[3].form_submit_button("取消編輯")
+            if cancel_btn:
                 st.session_state.edit_mode = False
                 st.session_state.form_id += 1
                 st.rerun()
@@ -161,9 +169,12 @@ with tab1:
                 display_list = valid_rows[-3:]
 
             if display_list:
+                # 建立表頭
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                for col, t in zip(cols, ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]):
+                headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
+                for col, t in zip(cols, headers):
                     col.markdown(f"**{t}**")
+                
                 for r_idx, r_val in reversed(display_list):
                     c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                     c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
@@ -175,10 +186,11 @@ with tab1:
                     if c[7].button("📝", key=f"ed_{r_idx}"):
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
+                    # 補回最右邊勾選框
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (4K 穩定基準) ---
+# --- Tab 2: 數據統計 (維持 4K 下載強化邏輯) ---
 with tab2:
     st.title("📊 數據統計分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -190,10 +202,10 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                custom_range = st.date_input("📅 選擇統計週期", value=[])
+                today = datetime.datetime.now(tw_timezone).date()
+                custom_range = st.date_input("📅 選擇統計週期", value=[today - datetime.timedelta(days=7), today])
                 if len(custom_range) == 2:
-                    start_date, end_date = custom_range
-                    wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= start_date) & (df_s[hdr[0]].dt.date <= end_date)]
+                    wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= custom_range[0]) & (df_s[hdr[0]].dt.date <= custom_range[1])]
                 else:
                     wk_df = df_s.tail(50)
 
@@ -216,8 +228,7 @@ with tab2:
                     with g1:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
-                        fig1 = apply_balanced_layout(px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold), "📂 客服案件類別分佈")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_smart_4k)
+                        st.plotly_chart(apply_balanced_layout(px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold), "📂 客服案件類別分佈"), use_container_width=True, config=config_smart_4k)
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
@@ -226,10 +237,9 @@ with tab2:
                         st.plotly_chart(fig2, use_container_width=True, config=config_smart_4k)
                     
                     st.divider()
-                    st.subheader("📊 詳細數據對比分析")
-                    fig_bar = apply_balanced_layout(px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo'), "案件類別精確對比")
+                    fig_bar = apply_balanced_layout(px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo'), "📊 案件類別精確對比")
                     fig_bar.update_layout(margin=dict(l=200, r=80, t=80, b=80))
                     st.metric("總案件數", f"{len(wk_df)} 件")
                     st.plotly_chart(fig_bar, use_container_width=True, config=config_smart_4k)
 
-st.caption("© 2026 應安客服系統 - 功能全補回穩定版")
+st.caption("© 2026 應安客服系統 ")
