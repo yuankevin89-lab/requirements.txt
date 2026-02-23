@@ -51,7 +51,7 @@ STATION_LIST = [
     "金華場","通化","杭南一","復興南","仁愛逸仙","興岩社福大樓","木柵社宅","泉州場","汀州場",
     "北平東場","福州場","水源市場","重慶南","西寧市場","西園國宅","復興北","宏泰民生","新洲美福善場","福善一",
     "石牌二","中央北","紅毛城","三玉","士林場","永平社宅","涼州場","大龍峒社宅","成功場","洲子場","環山",
-    "文湖場","民善場","行愛場","新明場","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
+    "文湖場","民善場","行愛場","新明場","德明研推","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
     "樹林水源","土城中華場","光正","合宜A2","合宜A3","合宜A6","裕民","中央二","中央三","陶都場","板橋文化1F","板橋文化B1",
     "佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬","三重永福","徐匯場","蘆洲保和",
     "蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場","龜山興富","竹東長春","竹南中山",
@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (4K 全柱狀圖特粗對比版) ---
+# --- Tab 2: 數據統計 (4K 下載同步強化版) ---
 with tab2:
-    st.title("📊 數據統計與分析 (4K 柱狀圖對比版)")
+    st.title("📊 數據統計與分析 (4K 下載同步強化版)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,67 +198,66 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [高階設定] 4K 極致下載配置
+                    # [同步核心] 4K 高畫質下載配置 - 調整解析度與比例
                     config_4k = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安4K全柱狀報表',
+                            'filename': '應安4K同步投影報表',
                             'height': 2160,
                             'width': 3840,
-                            'scale': 4
+                            'scale': 1 # 已經設定 4K，Scale 設 1 即可，避免過度渲染
                         }
                     }
                     
-                    # 投影強化：無框線、文字特粗純黑
+                    # 投影強化：文字大小必須針對 4K 縮放比例大幅增加
                     projector_layout = dict(
-                        font=dict(family="Arial Black, Microsoft JhengHei", size=20, color="#000000"),
-                        title_font=dict(size=36, color='#000000', family="Arial Black"),
+                        font=dict(family="Arial Black, Microsoft JhengHei", size=48, color="#000000"), # 提高到 48px
+                        title_font=dict(size=80, color='#000000', family="Arial Black"), # 標題提高到 80px
                         paper_bgcolor='white',
                         plot_bgcolor='white',
-                        height=700,
-                        margin=dict(t=120, b=150, l=100, r=50)
+                        height=1000, # 網頁顯示高度也調升
+                        margin=dict(t=200, b=300, l=150, r=100), # 增加邊界防止切掉文字
+                        showlegend=False # 移除圖例，節省空間
                     )
                     
                     g1, g2 = st.columns(2)
                     with g1:
-                        # 類別比例改為柱狀圖
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
                         fig1 = px.bar(cat_data, x='類別', y='件數', title="📂 客服案件類別分佈",
                                      text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1.update_traces(textposition='outside', textfont=dict(size=22, family="Arial Black"), marker_line_width=0)
+                        fig1.update_traces(textposition='outside', textfont=dict(size=50, family="Arial Black"), marker_line_width=0)
                         fig1.update_layout(**projector_layout)
-                        fig1.update_xaxes(tickfont=dict(size=20, color="#000000"), title="")
-                        fig1.update_yaxes(title="案件數量", title_font_size=22, tickfont=dict(size=20, color="#000000"), gridcolor="#EEEEEE")
+                        fig1.update_xaxes(tickfont=dict(size=40, color="#000000"), title="")
+                        fig1.update_yaxes(title="案件數量", title_font_size=44, tickfont=dict(size=36, color="#000000"), gridcolor="#EEEEEE")
                         st.plotly_chart(fig1, use_container_width=True, config=config_4k)
                     
                     with g2:
-                        # 場站比例改為柱狀圖 (僅 Top 10)
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', title="🏢 場站負擔排名 (Top 10)",
                                      text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2.update_traces(textposition='outside', textfont=dict(size=22, family="Arial Black"), marker_line_width=0)
+                        fig2.update_traces(textposition='outside', textfont=dict(size=50, family="Arial Black"), marker_line_width=0)
                         fig2.update_layout(**projector_layout)
-                        fig2.update_xaxes(tickangle=45, tickfont=dict(size=20, color="#000000"), title="")
-                        fig2.update_yaxes(title="案件數量", title_font_size=22, tickfont=dict(size=20, color="#000000"), gridcolor="#EEEEEE")
+                        fig2.update_xaxes(tickangle=45, tickfont=dict(size=36, color="#000000"), title="")
+                        fig2.update_yaxes(title="案件數量", title_font_size=44, tickfont=dict(size=36, color="#000000"), gridcolor="#EEEEEE")
                         st.plotly_chart(fig2, use_container_width=True, config=config_4k)
                     
                     st.divider()
-                    # 詳細數據統計圖表 (水平柱狀圖優化)
                     st.subheader("📊 詳細數據對比分析")
+                    # 水平柱狀圖優化
                     fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', 
                                      title="案件類別精確對比", text='件數',
                                      color='件數', color_continuous_scale='Turbo')
                     
-                    fig_bar.update_traces(textposition='outside', textfont=dict(size=24, color='#000000', family="Arial Black"), marker_line_width=0)
+                    fig_bar.update_traces(textposition='outside', textfont=dict(size=50, color='#000000', family="Arial Black"), marker_line_width=0)
                     fig_bar.update_layout(
-                        font=dict(family="Arial Black, Microsoft JhengHei", size=20, color="#000000"),
-                        title_font_size=36,
-                        xaxis=dict(title="案件數量", title_font_size=22, tickfont_size=20, color="#000000", gridcolor='#EEEEEE'),
-                        yaxis=dict(title="", tickfont_size=22, color="#000000"),
-                        height=600,
-                        margin=dict(l=20, r=120, t=120, b=80),
+                        font=dict(family="Arial Black, Microsoft JhengHei", size=48, color="#000000"),
+                        title_font_size=80,
+                        xaxis=dict(title="案件數量", title_font_size=44, tickfont_size=36, color="#000000", gridcolor='#EEEEEE'),
+                        yaxis=dict(title="", tickfont_size=40, color="#000000"),
+                        height=1000,
+                        margin=dict(l=300, r=200, t=200, b=150),
                         plot_bgcolor='white',
                         coloraxis_showscale=False
                     )
@@ -267,4 +266,4 @@ with tab2:
                 else:
                     st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 4K 全柱狀圖極致對比版")
+st.caption("© 2026 應安客服系統 - 4K 下載同步強化版")
