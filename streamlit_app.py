@@ -219,31 +219,40 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
+                    # [優化] 設定高解析度下載參數
+                    chart_config = {
+                        'toImageButtonOptions': {
+                            'format': 'png',
+                            'filename': '應安客服統計圖表',
+                            'height': 1000,
+                            'width': 1200,
+                            'scale': 3 # 提高 3 倍解析度
+                        }
+                    }
+                    
                     g1, g2 = st.columns(2)
                     common_layout = dict(
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
-                        margin=dict(t=50, b=150, l=20, r=20),
-                        height=550
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5, font=dict(size=14)),
+                        title=dict(font=dict(size=22)),
+                        margin=dict(t=80, b=150, l=20, r=20),
+                        height=600
                     )
                     
                     with g1:
                         fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別比例分析", hole=0.4)
-                        fig1.update_traces(textinfo='percent', textposition='inside')
+                        fig1.update_traces(textinfo='percent+label', textposition='inside', textfont=dict(size=14))
                         fig1.update_layout(**common_layout)
-                        st.plotly_chart(fig1, use_container_width=True)
+                        st.plotly_chart(fig1, use_container_width=True, config=chart_config)
                     
                     with g2:
-                        # [修正邏輯] 場站比例分析：僅顯示前十名，其餘拿掉
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']
-                        
-                        # 僅保留前 10 名數據，不進行「其他」歸類
                         plot_df = st_counts.head(10)
                             
                         fig2 = px.pie(plot_df, values='件數', names='場站', title="🏢 場站比例分析 (Top 10)", hole=0.4)
-                        fig2.update_traces(textinfo='percent', textposition='inside')
+                        fig2.update_traces(textinfo='percent+label', textposition='inside', textfont=dict(size=14))
                         fig2.update_layout(**common_layout)
-                        st.plotly_chart(fig2, use_container_width=True)
+                        st.plotly_chart(fig2, use_container_width=True, config=chart_config)
                     
                     st.divider()
                     st.subheader("📈 詳細數據統計")
@@ -256,19 +265,19 @@ with tab2:
                                      title=f"各類別件數明細 ({start_date} ~ {end_date})",
                                      text='件數', color='件數', color_continuous_scale='Blues')
                     
-                    fig_bar.update_traces(textposition='outside')
+                    fig_bar.update_traces(textposition='outside', textfont=dict(size=14))
                     fig_bar.update_layout(
-                        height=400,
-                        margin=dict(t=50, b=50, l=20, r=50),
+                        height=500,
+                        title=dict(font=dict(size=22)),
+                        margin=dict(t=80, b=50, l=20, r=80),
                         xaxis_title="案件數量",
                         yaxis_title="",
                         coloraxis_showscale=False
                     )
-                    
                     st.metric("總案件數", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=chart_config)
 
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/23 Top 10 鎖定版")
+st.caption("© 2026 應安客服系統 - 2/23 高清渲染下載版")
