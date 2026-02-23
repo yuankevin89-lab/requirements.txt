@@ -81,7 +81,7 @@ if "form_id" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 ---
+# --- Tab 1: 案件登記 (維持最新基準) ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (4K 下載同步強化版) ---
+# --- Tab 2: 數據統計 (4K 下載投影增強版) ---
 with tab2:
-    st.title("📊 數據統計與分析 (4K 下載同步強化版)")
+    st.title("📊 數據統計與分析 (4K 投影增強版)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,26 +198,27 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [同步核心] 4K 高畫質下載配置 - 調整解析度與比例
-                    config_4k = {
+                    # [核心配置] 網頁顯示與下載分離設計
+                    # 下載設定：鎖定 4K 與超大字體比例
+                    config_4k_projector = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安4K同步投影報表',
+                            'filename': '應安4K投影專用圖表',
                             'height': 2160,
                             'width': 3840,
-                            'scale': 1 # 已經設定 4K，Scale 設 1 即可，避免過度渲染
+                            'scale': 1
                         }
                     }
                     
-                    # 投影強化：文字大小必須針對 4K 縮放比例大幅增加
-                    projector_layout = dict(
-                        font=dict(family="Arial Black, Microsoft JhengHei", size=48, color="#000000"), # 提高到 48px
-                        title_font=dict(size=80, color='#000000', family="Arial Black"), # 標題提高到 80px
+                    # 網頁顯示佈局：適中大小，但下載時會由 4K 解析度自動縮放
+                    web_layout = dict(
+                        font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"), # 網頁看很舒服
+                        title_font=dict(size=28, color='#000000', family="Arial Black"),
                         paper_bgcolor='white',
                         plot_bgcolor='white',
-                        height=1000, # 網頁顯示高度也調升
-                        margin=dict(t=200, b=300, l=150, r=100), # 增加邊界防止切掉文字
-                        showlegend=False # 移除圖例，節省空間
+                        height=600,
+                        margin=dict(t=100, b=150, l=80, r=50),
+                        showlegend=False
                     )
                     
                     g1, g2 = st.columns(2)
@@ -226,44 +227,56 @@ with tab2:
                         cat_data.columns = ['類別', '件數']
                         fig1 = px.bar(cat_data, x='類別', y='件數', title="📂 客服案件類別分佈",
                                      text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1.update_traces(textposition='outside', textfont=dict(size=50, family="Arial Black"), marker_line_width=0)
-                        fig1.update_layout(**projector_layout)
-                        fig1.update_xaxes(tickfont=dict(size=40, color="#000000"), title="")
-                        fig1.update_yaxes(title="案件數量", title_font_size=44, tickfont=dict(size=36, color="#000000"), gridcolor="#EEEEEE")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_4k)
+                        fig1.update_traces(
+                            textposition='outside', 
+                            textfont=dict(size=22, family="Arial Black"), # 網頁顯示大小
+                            marker_line_width=0
+                        )
+                        fig1.update_layout(**web_layout)
+                        # 下載時 Plotly 會按解析度渲染，所以文字會自動保持高清
+                        fig1.update_xaxes(tickfont=dict(size=18, color="#000000"), title="")
+                        fig1.update_yaxes(title="案件數量", title_font_size=20, tickfont=dict(size=16, color="#000000"), gridcolor="#EEEEEE")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_4k_projector)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', title="🏢 場站負擔排名 (Top 10)",
                                      text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2.update_traces(textposition='outside', textfont=dict(size=50, family="Arial Black"), marker_line_width=0)
-                        fig2.update_layout(**projector_layout)
-                        fig2.update_xaxes(tickangle=45, tickfont=dict(size=36, color="#000000"), title="")
-                        fig2.update_yaxes(title="案件數量", title_font_size=44, tickfont=dict(size=36, color="#000000"), gridcolor="#EEEEEE")
-                        st.plotly_chart(fig2, use_container_width=True, config=config_4k)
+                        fig2.update_traces(
+                            textposition='outside', 
+                            textfont=dict(size=22, family="Arial Black"),
+                            marker_line_width=0
+                        )
+                        fig2.update_layout(**web_layout)
+                        fig2.update_xaxes(tickangle=45, tickfont=dict(size=18, color="#000000"), title="")
+                        fig2.update_yaxes(title="案件數量", title_font_size=20, tickfont=dict(size=16, color="#000000"), gridcolor="#EEEEEE")
+                        st.plotly_chart(fig2, use_container_width=True, config=config_4k_projector)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
-                    # 水平柱狀圖優化
                     fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', 
                                      title="案件類別精確對比", text='件數',
                                      color='件數', color_continuous_scale='Turbo')
                     
-                    fig_bar.update_traces(textposition='outside', textfont=dict(size=50, color='#000000', family="Arial Black"), marker_line_width=0)
+                    fig_bar.update_traces(
+                        textposition='outside', 
+                        textfont=dict(size=24, color='#000000', family="Arial Black"), 
+                        marker_line_width=0
+                    )
                     fig_bar.update_layout(
-                        font=dict(family="Arial Black, Microsoft JhengHei", size=48, color="#000000"),
-                        title_font_size=80,
-                        xaxis=dict(title="案件數量", title_font_size=44, tickfont_size=36, color="#000000", gridcolor='#EEEEEE'),
-                        yaxis=dict(title="", tickfont_size=40, color="#000000"),
-                        height=1000,
-                        margin=dict(l=300, r=200, t=200, b=150),
+                        font=dict(family="Arial Black, Microsoft JhengHei", size=20, color="#000000"),
+                        title_font_size=32,
+                        xaxis=dict(title="案件數量", title_font_size=22, tickfont_size=18, color="#000000", gridcolor='#EEEEEE'),
+                        yaxis=dict(title="", tickfont_size=20, color="#000000"),
+                        height=600,
+                        margin=dict(l=200, r=150, t=100, b=80),
                         plot_bgcolor='white',
                         coloraxis_showscale=False
                     )
                     st.metric("總案件數 (選定範圍)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_projector)
                 else:
                     st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 4K 下載同步強化版")
+st.caption("© 2026 應安客服系統 - 4K 下載投影同步強化版")
