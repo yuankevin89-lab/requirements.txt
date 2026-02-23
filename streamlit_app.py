@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 
-# --- 1. 頁面基本設定與專業樣式 ---
+# --- 1. 頁面基本設定與樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
 st.markdown("""
@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (完美兼顧網頁與 4K 下載版) ---
+# --- Tab 2: 數據統計 (強化下載比例版) ---
 with tab2:
-    st.title("📊 數據統計與分析 (智慧佈局版)")
+    st.title("📊 數據統計與分析 (4K 下載同步強化版)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,36 +198,38 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [智慧下載設定] 下載時強制改寫佈局與字體
-                    config_smart = {
+                    # [關鍵優化] 下載配置：維持 4K 解析度
+                    config_4k_enhanced = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安4K高清投影報表',
+                            'filename': '應安4K高清圖表',
                             'height': 2160,
                             'width': 3840,
-                            'scale': 1
+                            'scale': 1 # 4K 下 scale 設 1 即可，由 layout 控制字體
                         }
                     }
                     
-                    # 網頁版通用佈局：移除寫死的巨大字體，改用相對尺寸
-                    def apply_smart_layout(fig, title_text):
+                    # [同步佈局函數] 確保線上版正常，下載版字體放大
+                    def apply_balanced_layout(fig, title_text, is_h=False):
                         fig.update_layout(
-                            title=dict(text=title_text, font=dict(size=24, family="Arial Black", color="#000000")),
-                            font=dict(family="Arial Black, Microsoft JhengHei", size=14, color="#000000"),
-                            paper_bgcolor='rgba(0,0,0,0)',
+                            # 線上端顯示設定 (使用相對較大的像素值以適配 4K 下載時的縮放比例)
+                            font=dict(family="Arial Black, Microsoft JhengHei", size=48, color="#000000"),
+                            title=dict(text=title_text, font=dict(size=80, color='#000000')),
+                            paper_bgcolor='white',
                             plot_bgcolor='white',
-                            margin=dict(t=80, b=80, l=60, r=40),
+                            margin=dict(t=250, b=300, l=150, r=100),
                             showlegend=False,
-                            autosize=True # 關鍵：允許網頁版自動縮放
+                            height=800 # 讓網頁端看起來也比較大
                         )
-                        # 下載時會自動根據解析度調整 Textposition
+                        # 數據標籤強化
                         fig.update_traces(
-                            textfont=dict(size=18, family="Arial Black", color="#000000"),
+                            textfont=dict(size=55, color="#000000", family="Arial Black"),
                             textposition='outside',
                             marker_line_width=0
                         )
-                        fig.update_xaxes(tickfont=dict(size=13, color="#000000"), title_font_size=15, gridcolor="#EEEEEE")
-                        fig.update_yaxes(tickfont=dict(size=13, color="#000000"), title_font_size=15, gridcolor="#EEEEEE")
+                        # 座標軸文字大幅強化
+                        fig.update_xaxes(tickfont=dict(size=40, color="#000000"), title_font_size=45, gridcolor="#EEEEEE")
+                        fig.update_yaxes(tickfont=dict(size=40, color="#000000"), title_font_size=45, gridcolor="#EEEEEE")
                         return fig
 
                     g1, g2 = st.columns(2)
@@ -235,29 +237,27 @@ with tab2:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
                         fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1 = apply_smart_layout(fig1, "📂 客服案件類別分佈")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_smart)
+                        fig1 = apply_balanced_layout(fig1, "📂 客服案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_4k_enhanced)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2 = apply_smart_layout(fig2, "🏢 場站排名 (Top 10)")
-                        fig2.update_xaxes(tickangle=45)
-                        st.plotly_chart(fig2, use_container_width=True, config=config_smart)
+                        fig2 = apply_balanced_layout(fig2, "🏢 場站排名 (Top 10)")
+                        fig2.update_xaxes(tickangle=30)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_4k_enhanced)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
-                    # 詳細統計水平柱狀圖
                     fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', 
                                      text='件數', color='件數', color_continuous_scale='Turbo')
-                    fig_bar = apply_smart_layout(fig_bar, "案件類別精確對比")
-                    # 針對網頁端微調水平圖的邊距，避免名稱被切掉
-                    fig_bar.update_layout(margin=dict(l=150, r=80, t=80, b=60))
+                    fig_bar = apply_balanced_layout(fig_bar, "案件類別精確對比")
+                    fig_bar.update_layout(margin=dict(l=350, r=150, t=250, b=150), height=1000)
                     
                     st.metric("總案件數 (選定範圍)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_smart)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_enhanced)
                 else:
                     st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 智慧佈局同步強化版")
+st.caption("© 2026 應安客服系統 - 4K 投影增強同步版 (修正 4K 字體比例)")
