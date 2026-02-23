@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (強化下載比例版) ---
+# --- Tab 2: 數據統計 (完美兼顧下載版) ---
 with tab2:
-    st.title("📊 數據統計與分析 (4K 下載同步強化版)")
+    st.title("📊 數據統計分析 (4K 下載同步優化)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,38 +198,36 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [關鍵優化] 下載配置：維持 4K 解析度
-                    config_4k_enhanced = {
+                    # [關鍵下載設定]
+                    # 網頁版字體適中，下載版放大 3 倍
+                    download_config = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安4K高清圖表',
+                            'filename': '應安4K投影專用圖表',
                             'height': 2160,
                             'width': 3840,
-                            'scale': 1 # 4K 下 scale 設 1 即可，由 layout 控制字體
+                            'scale': 3 # 核心：下載時自動將所有比例放大 3 倍
                         }
                     }
                     
-                    # [同步佈局函數] 確保線上版正常，下載版字體放大
-                    def apply_balanced_layout(fig, title_text, is_h=False):
+                    # 通用佈局：確保線上版舒適，並移除圖例以爭取空間
+                    def apply_custom_layout(fig, title_text):
                         fig.update_layout(
-                            # 線上端顯示設定 (使用相對較大的像素值以適配 4K 下載時的縮放比例)
-                            font=dict(family="Arial Black, Microsoft JhengHei", size=48, color="#000000"),
-                            title=dict(text=title_text, font=dict(size=80, color='#000000')),
+                            font=dict(family="Arial Black, Microsoft JhengHei", size=22, color="#000000"), # 線上版字體
+                            title=dict(text=title_text, font=dict(size=32, color='#000000')),
                             paper_bgcolor='white',
                             plot_bgcolor='white',
-                            margin=dict(t=250, b=300, l=150, r=100),
+                            margin=dict(t=100, b=150, l=80, r=50), # 預留底部給 X 軸標籤
                             showlegend=False,
-                            height=800 # 讓網頁端看起來也比較大
+                            height=600 # 線上固定高度，確保不變形
                         )
-                        # 數據標籤強化
                         fig.update_traces(
-                            textfont=dict(size=55, color="#000000", family="Arial Black"),
+                            textfont=dict(size=24, color="#000000", family="Arial Black"),
                             textposition='outside',
                             marker_line_width=0
                         )
-                        # 座標軸文字大幅強化
-                        fig.update_xaxes(tickfont=dict(size=40, color="#000000"), title_font_size=45, gridcolor="#EEEEEE")
-                        fig.update_yaxes(tickfont=dict(size=40, color="#000000"), title_font_size=45, gridcolor="#EEEEEE")
+                        fig.update_xaxes(tickfont=dict(size=18, color="#000000"), title_font_size=20, gridcolor="#EEEEEE")
+                        fig.update_yaxes(tickfont=dict(size=18, color="#000000"), title_font_size=20, gridcolor="#EEEEEE")
                         return fig
 
                     g1, g2 = st.columns(2)
@@ -237,27 +235,27 @@ with tab2:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
                         fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1 = apply_balanced_layout(fig1, "📂 客服案件類別分佈")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_4k_enhanced)
+                        fig1 = apply_custom_layout(fig1, "📂 客服案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=download_config)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2 = apply_balanced_layout(fig2, "🏢 場站排名 (Top 10)")
-                        fig2.update_xaxes(tickangle=30)
-                        st.plotly_chart(fig2, use_container_width=True, config=config_4k_enhanced)
+                        fig2 = apply_custom_layout(fig2, "🏢 場站排名 (Top 10)")
+                        fig2.update_xaxes(tickangle=35)
+                        st.plotly_chart(fig2, use_container_width=True, config=download_config)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
                     fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', 
                                      text='件數', color='件數', color_continuous_scale='Turbo')
-                    fig_bar = apply_balanced_layout(fig_bar, "案件類別精確對比")
-                    fig_bar.update_layout(margin=dict(l=350, r=150, t=250, b=150), height=1000)
+                    fig_bar = apply_custom_layout(fig_bar, "案件類別精確對比")
+                    fig_bar.update_layout(margin=dict(l=220, r=100, t=100, b=100), height=700)
                     
                     st.metric("總案件數 (選定範圍)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_enhanced)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=download_config)
                 else:
                     st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 4K 投影增強同步版 (修正 4K 字體比例)")
+st.caption("© 2026 應安客服系統 - 4K 下載同步強化版")
