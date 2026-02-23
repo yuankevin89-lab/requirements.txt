@@ -139,9 +139,9 @@ with tab1:
                         st.rerun()
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (羅馬柱內置文字版) ---
+# --- Tab 2: 數據統計 (恢復後的穩定基準版) ---
 with tab2:
-    st.title("📊 數據統計分析 (羅馬柱內置標籤版)")
+    st.title("📊 數據統計分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -161,37 +161,33 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    config_4k_roman = {
+                    # 4K 下載配置：透過 scale 自動放大
+                    config_smart_4k = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安羅馬柱報表_4K',
+                            'filename': '應安4K投影報表',
                             'height': 1080,
                             'width': 1920,
                             'scale': 4
                         }
                     }
                     
-                    # 佈局函數：羅馬柱風格與內置文字
-                    def apply_roman_layout(fig, title_text):
+                    # 佈局函數：網頁版舒適大小
+                    def apply_balanced_layout(fig, title_text):
                         fig.update_layout(
                             font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
-                            title=dict(text=title_text, font=dict(size=24, color='#000000')),
+                            title=dict(text=title_text, font=dict(size=22, color='#000000')),
                             paper_bgcolor='white',
                             plot_bgcolor='white',
-                            margin=dict(t=80, b=120, l=70, r=40),
+                            margin=dict(t=80, b=100, l=60, r=40),
                             showlegend=False,
-                            height=600
+                            autosize=True
                         )
-                        # 模擬羅馬柱：深色邊框 + 漸層外觀 + 內置白色文字
                         fig.update_traces(
-                            marker_line_color='black', # 羅馬柱邊框
-                            marker_line_width=2,
-                            textfont=dict(size=22, color="white", family="Arial Black"), # 柱內字體為白色
-                            textposition='inside', # 關鍵：文字放進柱子裡
-                            insidetextanchor='end', # 靠柱子頂部內部
-                            texttemplate='%{text}'
+                            textfont=dict(size=20, color="#000000", family="Arial Black"),
+                            textposition='outside'
                         )
-                        fig.update_xaxes(tickfont=dict(size=15, color="#000000", family="Arial Black"), gridcolor="#DDDDDD")
+                        fig.update_xaxes(tickfont=dict(size=14, color="#000000"), gridcolor="#EEEEEE")
                         fig.update_yaxes(tickfont=dict(size=14, color="#000000"), gridcolor="#EEEEEE")
                         return fig
 
@@ -199,27 +195,25 @@ with tab2:
                     with g1:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
-                        fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Dark24)
-                        fig1 = apply_roman_layout(fig1, "🏛️ 客服案件類別分佈 (羅馬柱)")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_4k_roman)
+                        fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
+                        fig1 = apply_balanced_layout(fig1, "📂 客服案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_smart_4k)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
-                        fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
-                        fig2 = apply_roman_layout(fig2, "🏛️ 場站排名 (Top 10)")
+                        fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
+                        fig2 = apply_balanced_layout(fig2, "🏢 場站排名 (Top 10)")
                         fig2.update_xaxes(tickangle=35)
-                        st.plotly_chart(fig2, use_container_width=True, config=config_4k_roman)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_smart_4k)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
-                    fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='YlGnBu')
-                    fig_bar = apply_roman_layout(fig_bar, "🏛️ 案件類別精確對比")
-                    fig_bar.update_layout(margin=dict(l=220, r=80, t=80, b=80))
-                    # 水平柱狀圖的文字也放進去
-                    fig_bar.update_traces(textposition='inside', insidetextanchor='end')
+                    fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo')
+                    fig_bar = apply_balanced_layout(fig_bar, "案件類別精確對比")
+                    fig_bar.update_layout(margin=dict(l=200, r=80, t=80, b=80))
                     
                     st.metric("總案件數", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_roman)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_smart_4k)
 
-st.caption("© 2026 應安客服系統 - 🏛️ 羅馬柱內置標籤版")
+st.caption("© 2026 應安客服系統 ")
