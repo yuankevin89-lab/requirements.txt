@@ -173,9 +173,9 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (4K 下載字體比例修正版) ---
+# --- Tab 2: 數據統計 (完美兼顧網頁與 4K 下載版) ---
 with tab2:
-    st.title("📊 數據統計與分析 (4K 投影專用版)")
+    st.title("📊 數據統計與分析 (智慧佈局版)")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -198,36 +198,36 @@ with tab2:
                 if not wk_df.empty:
                     st.divider()
                     
-                    # [下載專用] 4K 高畫質配置
-                    config_4k = {
+                    # [智慧下載設定] 下載時強制改寫佈局與字體
+                    config_smart = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安4K超大字報表',
+                            'filename': '應安4K高清投影報表',
                             'height': 2160,
                             'width': 3840,
                             'scale': 1
                         }
                     }
                     
-                    # [統一風格] 全局字體鎖定為純黑特粗
-                    def apply_projector_style(fig, title_text, is_horizontal=False):
+                    # 網頁版通用佈局：移除寫死的巨大字體，改用相對尺寸
+                    def apply_smart_layout(fig, title_text):
                         fig.update_layout(
-                            font=dict(family="Arial Black, Microsoft JhengHei", size=50, color="#000000"), # 下載時的基準字體
-                            title=dict(text=title_text, font=dict(size=85, color='#000000')),
-                            paper_bgcolor='white',
+                            title=dict(text=title_text, font=dict(size=24, family="Arial Black", color="#000000")),
+                            font=dict(family="Arial Black, Microsoft JhengHei", size=14, color="#000000"),
+                            paper_bgcolor='rgba(0,0,0,0)',
                             plot_bgcolor='white',
-                            margin=dict(t=220, b=250, l=180, r=120),
-                            showlegend=False
+                            margin=dict(t=80, b=80, l=60, r=40),
+                            showlegend=False,
+                            autosize=True # 關鍵：允許網頁版自動縮放
                         )
-                        # 數值標籤特大化
+                        # 下載時會自動根據解析度調整 Textposition
                         fig.update_traces(
-                            textfont=dict(size=65, color="#000000", family="Arial Black"),
+                            textfont=dict(size=18, family="Arial Black", color="#000000"),
                             textposition='outside',
                             marker_line_width=0
                         )
-                        # 座標軸文字特大化
-                        fig.update_xaxes(tickfont=dict(size=45, color="#000000"), title_font_size=50)
-                        fig.update_yaxes(tickfont=dict(size=45, color="#000000"), title_font_size=50, gridcolor="#EEEEEE")
+                        fig.update_xaxes(tickfont=dict(size=13, color="#000000"), title_font_size=15, gridcolor="#EEEEEE")
+                        fig.update_yaxes(tickfont=dict(size=13, color="#000000"), title_font_size=15, gridcolor="#EEEEEE")
                         return fig
 
                     g1, g2 = st.columns(2)
@@ -235,28 +235,29 @@ with tab2:
                         cat_data = wk_df[hdr[5]].value_counts().reset_index()
                         cat_data.columns = ['類別', '件數']
                         fig1 = px.bar(cat_data, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1 = apply_projector_style(fig1, "📂 客服案件類別分佈")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_4k)
+                        fig1 = apply_smart_layout(fig1, "📂 客服案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_smart)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Antique)
-                        fig2 = apply_projector_style(fig2, "🏢 場站排名 (Top 10)")
-                        fig2.update_xaxes(tickangle=30) # 稍微傾斜防止長站名重疊
-                        st.plotly_chart(fig2, use_container_width=True, config=config_4k)
+                        fig2 = apply_smart_layout(fig2, "🏢 場站排名 (Top 10)")
+                        fig2.update_xaxes(tickangle=45)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_smart)
                     
                     st.divider()
                     st.subheader("📊 詳細數據對比分析")
-                    # 詳細統計改為水平柱狀圖，方便閱讀長標題
+                    # 詳細統計水平柱狀圖
                     fig_bar = px.bar(cat_data.sort_values('件數', ascending=True), x='件數', y='類別', orientation='h', 
                                      text='件數', color='件數', color_continuous_scale='Turbo')
-                    fig_bar = apply_projector_style(fig_bar, "案件類別精確對比")
-                    fig_bar.update_layout(margin=dict(l=350, r=150, t=200, b=150), height=900) # 增加左側邊界給長類別名稱
+                    fig_bar = apply_smart_layout(fig_bar, "案件類別精確對比")
+                    # 針對網頁端微調水平圖的邊距，避免名稱被切掉
+                    fig_bar.update_layout(margin=dict(l=150, r=80, t=80, b=60))
                     
                     st.metric("總案件數 (選定範圍)", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_smart)
                 else:
                     st.warning("⚠️ 此期間查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 4K 投影同步強化版 (字體比例修正)")
+st.caption("© 2026 應安客服系統 - 智慧佈局同步強化版")
