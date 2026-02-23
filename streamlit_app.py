@@ -5,6 +5,10 @@ import datetime
 import pandas as pd
 import pytz
 import plotly.express as px
+import time
+import threading
+import tkinter as tk
+from tkinter import messagebox
 
 # --- 1. 頁面基本設定與樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -17,6 +21,13 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
+    /* 4K 投影增強：全域字體加粗與純黑 [cite: 2026-02-23] */
+    html, body, [class*="css"], .stMarkdown, .stText {
+        font-family: "Microsoft JhengHei", sans-serif !important;
+        color: #000000 !important;
+        font-weight: 900 !important;
+    }
+
     /* [功能] 標記變色樣式 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
@@ -63,6 +74,17 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
+# --- [新增] 置頂提醒核心函數 [cite: 2026-02-24] ---
+def trigger_popup_reminder(title, delay_mins):
+    def run():
+        time.sleep(delay_mins * 60)
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True) # 強制置頂
+        messagebox.showinfo("應安客服提醒", f"時間到！\n\n內容：{title}")
+        root.destroy()
+    threading.Thread(target=run, daemon=True).start()
+
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -87,10 +109,12 @@ with tab1:
     now_ts = datetime.datetime.now(tw_timezone)
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
+    
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
         st.info(f"🕒 案件時間：{f_dt}")
+        
         c1, c2 = st.columns(2)
         with c1:
             station_name = st.selectbox("場站名稱", options=STATION_LIST, index=STATION_LIST.index(d[1]) if d[1] in STATION_LIST else 0)
@@ -98,6 +122,7 @@ with tab1:
         with c2:
             user_name = st.selectbox("填單人", options=STAFF_LIST, index=STAFF_LIST.index(d[7]) if d[7] in STAFF_LIST else 0, disabled=st.session_state.edit_mode)
             caller_phone = st.text_input("電話", value=d[3])
+            
         c3, c4 = st.columns(2)
         with c3:
             d_cat = d[5]
@@ -105,18 +130,45 @@ with tab1:
             category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 6)
         with c4:
             car_num = st.text_input("車號", value=d[4])
+            
         description = st.text_area("描述內容", value=d[6])
-        btn_c1, _, _, _ = st.columns([1, 1, 1, 3])
-        if btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出"):
+
+        # --- [新增] 提醒功能區塊 [cite: 2026-02-24] ---
+        st.markdown("---")
+        st.write("⏰ **後續追蹤提醒設定 (選填)**")
+        use_reminder = st.checkbox("送出後同步開啟定時提醒")
+        r_c1, r_c2 = st.columns([3, 1])
+        with r_c1:
+            rem_title = st.text_input("提醒內容", value=f"追蹤：{station_name} ({car_num.upper()})", help="自動抓取場站與車號")
+        with r_c2:
+            rem_mins = st.number_input("幾分鐘後提醒", min_value=1, value=10)
+
+        st.markdown("---")
+        btn_c1, btn_c2, _, _ = st.columns([1.5, 1.5, 1, 3])
+        
+        submit_clicked = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
+        
+        if submit_clicked:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
+                
+                # 執行寫入 Sheets 邏輯 [cite: 2026-02-17]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
                     st.session_state.edit_mode = False
                 else:
                     sheet.append_row(row)
+                
+                # 啟動提醒 [cite: 2026-02-24]
+                if use_reminder:
+                    trigger_popup_reminder(rem_title, rem_mins)
+                    st.toast(f"✅ 提醒已設定：{rem_mins} 分鐘後彈窗", icon="⏰")
+
                 st.session_state.form_id += 1 
                 st.rerun()
+            else:
+                st.error("❌ 請務必選擇『場站名稱』與『填單人』")
+
     st.markdown("---")
     st.subheader("🔍 最近紀錄")
     if sheet:
@@ -128,7 +180,8 @@ with tab1:
             if search_q:
                 display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
             else:
-                display_list = valid_rows[-3:]
+                display_list = valid_rows[-3:] # 智慧顯示保底 3 筆 [cite: 2026-02-13]
+            
             if display_list:
                 for r_idx, r_val in reversed(display_list):
                     c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
@@ -139,7 +192,7 @@ with tab1:
                         st.rerun()
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (恢復後的穩定基準版) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -160,8 +213,6 @@ with tab2:
 
                 if not wk_df.empty:
                     st.divider()
-                    
-                    # 4K 下載配置：透過 scale 自動放大
                     config_smart_4k = {
                         'toImageButtonOptions': {
                             'format': 'png',
@@ -172,7 +223,6 @@ with tab2:
                         }
                     }
                     
-                    # 佈局函數：網頁版舒適大小
                     def apply_balanced_layout(fig, title_text):
                         fig.update_layout(
                             font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
@@ -216,4 +266,4 @@ with tab2:
                     st.metric("總案件數", f"{len(wk_df)} 件")
                     st.plotly_chart(fig_bar, use_container_width=True, config=config_smart_4k)
 
-st.caption("© 2026 應安客服系統 ")
+st.caption("© 2026 應安客服系統")
