@@ -61,8 +61,6 @@ STATION_LIST = [
 ]
 
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
-
-# 新增「繳費問題相關」至類別清單
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
 def init_connection():
@@ -92,10 +90,9 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
-    # 動態 Form ID 用於成功送出後徹底清空
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
-        # 案件時間紀錄到分鐘
+        # 案件時間紀錄至分鐘
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
         st.info(f"🕒 案件時間：{f_dt}")
         
@@ -140,7 +137,7 @@ with tab1:
                 else:
                     sheet.append_row(row)
                 
-                # 成功送出後更換 ID，強制清空所有欄位
+                # 成功送出後更換 ID，強制清空欄位
                 st.session_state.form_id += 1 
                 st.rerun()
             else:
@@ -226,15 +223,29 @@ with tab2:
                     common_layout = dict(
                         legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
                         margin=dict(t=50, b=150, l=20, r=20),
-                        height=500
+                        height=550
                     )
+                    
                     with g1:
                         fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別比例分析", hole=0.4)
                         fig1.update_traces(textinfo='percent', textposition='inside')
                         fig1.update_layout(**common_layout)
                         st.plotly_chart(fig1, use_container_width=True)
+                    
                     with g2:
-                        fig2 = px.pie(wk_df, names=hdr[1], title="🏢 場站比例分析", hole=0.4)
+                        # [修正邏輯] 場站比例分析：僅顯示前十名
+                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
+                        st_counts.columns = ['場站', '件數']
+                        
+                        if len(st_counts) > 10:
+                            top_10 = st_counts.head(10)
+                            others_count = st_counts.iloc[10:]['件數'].sum()
+                            others_df = pd.DataFrame([['其他場站', others_count]], columns=['場站', '件數'])
+                            plot_df = pd.concat([top_10, others_df])
+                        else:
+                            plot_df = st_counts
+                            
+                        fig2 = px.pie(plot_df, values='件數', names='場站', title="🏢 場站比例分析 (Top 10)", hole=0.4)
                         fig2.update_traces(textinfo='percent', textposition='inside')
                         fig2.update_layout(**common_layout)
                         st.plotly_chart(fig2, use_container_width=True)
@@ -265,4 +276,4 @@ with tab2:
                 else: 
                     st.warning(f"⚠️ 查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/22 類別更新版")
+st.caption("© 2026 應安客服系統 - 2/23 圖表優化版")
