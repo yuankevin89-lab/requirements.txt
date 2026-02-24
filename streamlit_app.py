@@ -63,9 +63,16 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
-# 定義統一的色彩規格映射
-CATEGORY_COLORS = px.colors.qualitative.Safe
-CATEGORY_COLOR_MAP = {cat: color for cat, color in zip(CATEGORY_LIST, CATEGORY_COLORS)}
+# --- [更新] 指定類別色彩映射 ---
+CATEGORY_COLOR_MAP = {
+    "身障優惠折抵": "blue",
+    "繳費機異常": "green",
+    "其他": "saddlebrown",
+    "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
+    "無法找零": px.colors.qualitative.Safe[2],
+    "網路異常": px.colors.qualitative.Safe[4],
+    "繳費問題相關": px.colors.qualitative.Safe[5]
+}
 
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -182,7 +189,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (色彩規格統一版) ---
+# --- Tab 2: 數據統計 (自定義色彩鎖定版) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -237,7 +244,6 @@ with tab2:
                     with g1:
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
-                        # 套用統一色彩映射
                         fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', 
                                      color_discrete_map=CATEGORY_COLOR_MAP)
                         fig1 = apply_bold_style(fig1, "📂 案件類別分佈")
@@ -253,7 +259,7 @@ with tab2:
                     
                     st.divider()
 
-                    # 3. 場站異常類別交叉分析 - 套用統一色彩
+                    # 3. 場站異常類別交叉分析 - 套用自定義色彩
                     cross_df = wk_df[wk_df[hdr[1]].isin(top_10_stations)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross_df.columns = ['場站', '異常類別', '件數']
                     fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', text='件數', 
@@ -264,7 +270,6 @@ with tab2:
                     st.divider()
                     
                     cat_detail = cat_counts.sort_values(by='件數', ascending=True)
-                    # 橫向圖表也套用統一色彩
                     fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數', color='類別', 
                                     color_discrete_map=CATEGORY_COLOR_MAP)
                     fig_bar = apply_bold_style(fig_bar, "📈 各類別精確統計")
@@ -275,4 +280,4 @@ with tab2:
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 色彩規格統一版")
+st.caption("© 2026 應安客服系統 - 2/24 自定義色彩鎖定版")
