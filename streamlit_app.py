@@ -6,7 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 
-# --- 1. 頁面基本設定與專業樣式 ---
+# --- 1. 頁面基本設定與專業樣式 (包含標記變色與懸停) ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
 st.markdown("""
@@ -17,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
-    /* [功能] 標記變色樣式 */
+    /* [功能] 標記變色樣式 - 2/24 關鍵 CSS */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -52,7 +52,7 @@ STATION_LIST = [
     "北平東場","福州場","水源市場","重慶南","西寧市場","西園國宅","復興北","宏泰民生","新洲美福善場","福善一",
     "石牌二","中央北","紅毛城","三玉","士林場","永平社宅","涼州場","大龍峒社宅","成功場","洲子場","環山",
     "文湖場","民善場","行愛場","新明場","德明研推","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
-    "樹林水源","土城中華場","光正","合宜A2","合宜A3","合宜A6","裕民","中央二","中央三","陶都場","板板文化1F","板橋文化B1",
+    "樹林水源","土城中華場","光正","合宜A2","合宜A3","合宜A6","裕民","中央二","中央三","陶都場","板橋文化1F","板橋文化B1",
     "佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬","三重永福","徐匯場","蘆洲保和",
     "蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場","龜山興富","竹東長春","竹南中山",
     "銅鑼停一","台中黎明場","後龍","台中復興","台中復興二","文心場","台中大和屋","一銀北港","西螺","虎尾",
@@ -137,7 +137,7 @@ with tab1:
             else:
                 st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 ---
+    # --- 最近紀錄 (含智慧輪動與分界線) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -162,7 +162,7 @@ with tab1:
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers): col.markdown(f"**{t}**")
-                st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+                st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True) # 標頭分隔線
                 
                 for r_idx, r_val in reversed(display_list):
                     c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
@@ -176,9 +176,9 @@ with tab1:
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
-                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True) # 每列分隔線
 
-# --- Tab 2: 數據統計 (下載字體粗體優化版) ---
+# --- Tab 2: 數據統計 (穩定下載佈局修正版) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -202,42 +202,29 @@ with tab2:
                     
                     config_4k_safe = {
                         'toImageButtonOptions': {
-                            'format': 'png', 'filename': f'應安統計報表_{datetime.date.today()}',
+                            'format': 'png', 'filename': '應安報修統計圖',
                             'height': 1080, 'width': 1920, 'scale': 2 
                         }
                     }
 
-                    # --- 核心優化：下載字體粗體且適中化 ---
-                    def apply_bold_style(fig, title_text):
+                    def apply_stable_style(fig, title_text):
                         fig.update_layout(
-                            # 設定全域字體為粗體，大小設為 20 確保下載清晰度
-                            font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
+                            font=dict(family="Microsoft JhengHei, Arial Black", size=22, color="#000000"),
                             title=dict(
                                 text=f"<b>{title_text}</b>", 
-                                font=dict(size=32, color='#000000'), # 標題特大粗體
+                                font=dict(size=36, color='#000000'),
                                 y=0.95, x=0.5, xanchor='center', yanchor='top'
                             ),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=120, b=120, l=100, r=100),
+                            margin=dict(t=150, b=150, l=100, r=100),
                             showlegend=False
                         )
                         fig.update_traces(
-                            # 柱狀圖上的數值標籤：粗體、適中大小
-                            textfont=dict(size=22, color="#000000"),
-                            textposition='outside',
-                            marker_line_color='#000000',
-                            marker_line_width=2
+                            textfont=dict(size=24, color="#000000"),
+                            textposition='outside', marker_line_color='#000000', marker_line_width=1.5
                         )
-                        fig.update_xaxes(
-                            # X軸文字：粗體、18px、傾斜避免重疊
-                            tickfont=dict(size=18, color="#000000"), 
-                            linecolor='#000000', linewidth=2.5, tickangle=-30
-                        )
-                        fig.update_yaxes(
-                            # Y軸文字：粗體、18px
-                            tickfont=dict(size=18, color="#000000"), 
-                            linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0'
-                        )
+                        fig.update_xaxes(tickfont=dict(size=20, color="#000000"), linecolor='#000000', linewidth=2, tickangle=-30)
+                        fig.update_yaxes(tickfont=dict(size=20, color="#000000"), linecolor='#000000', linewidth=2, gridcolor='#F0F0F0')
                         return fig
 
                     g1, g2 = st.columns(2)
@@ -245,26 +232,25 @@ with tab2:
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
                         fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Safe)
-                        fig1 = apply_bold_style(fig1, "📂 案件類別分佈")
+                        fig1 = apply_stable_style(fig1, "📂 案件類別分佈")
                         st.plotly_chart(fig1, use_container_width=True, config=config_4k_safe)
                     
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
                         fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
-                        fig2 = apply_bold_style(fig2, "🏢 場站排名 (Top 10)")
+                        fig2 = apply_stable_style(fig2, "🏢 場站排名 (Top 10)")
                         st.plotly_chart(fig2, use_container_width=True, config=config_4k_safe)
                     
                     st.divider()
                     cat_detail = cat_counts.sort_values(by='件數', ascending=True)
                     fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo')
-                    fig_bar = apply_bold_style(fig_bar, "📈 各類別精確統計")
-                    fig_bar.update_layout(coloraxis_showscale=False, height=600, margin=dict(l=220, t=100, b=80))
-                    # 針對橫向柱狀圖，讓 Y 軸類別名稱再大一點並加粗
-                    fig_bar.update_yaxes(tickfont=dict(size=20), tickangle=0) 
+                    fig_bar = apply_stable_style(fig_bar, "📈 各類別精確統計")
+                    fig_bar.update_layout(coloraxis_showscale=False, height=600, margin=dict(l=220, t=120, b=80))
+                    fig_bar.update_yaxes(tickfont=dict(size=22), tickangle=0) 
                     st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_safe)
 
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 下載字體粗體優化版")
+st.caption("© 2026 應安客服系統 ")
