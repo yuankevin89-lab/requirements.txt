@@ -5,6 +5,7 @@ import datetime
 import pandas as pd
 import pytz
 import plotly.express as px
+import plotly.graph_objects as go
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -41,7 +42,6 @@ st.markdown("""
 tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- 2. 初始資料與連線 ---
-# [更新] 增加 "昆陽一"、"合宜A6東"、"合宜A6西"，並移除 "合宜A6"
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -63,7 +63,6 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
-# 指定類別色彩映射
 CATEGORY_COLOR_MAP = {
     "身障優惠折抵": "blue",
     "繳費機異常": "green",
@@ -140,7 +139,7 @@ with tab1:
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
-                    st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, [""]*8
+                    st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
                 else:
                     sheet.append_row(row)
                 st.session_state.form_id += 1 
@@ -148,7 +147,6 @@ with tab1:
             else:
                 st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -209,7 +207,7 @@ with tab2:
 
                 if not wk_df.empty:
                     st.divider()
-                    st.metric("總案件數", f"{len(wk_df)} 件")
+                    st.metric("當前區間總案件數", f"{len(wk_df)} 件")
                     
                     config_4k_safe = {
                         'toImageButtonOptions': {
@@ -243,12 +241,29 @@ with tab2:
                         )
                         fig.update_traces(
                             textfont=dict(size=18 if is_stacked else 22, color="#000000", weight="bold"),
-                            textposition='inside' if is_stacked else 'outside',
                             marker_line_color='#000000', marker_line_width=1.5
                         )
                         fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-35)
                         fig.update_yaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
                         return fig
+
+                    # --- 趨勢分析圖 (Trend Analysis) ---
+                    st.subheader("⏳ 案件量每日趨勢分析")
+                    trend_df = wk_df.copy()
+                    trend_df['日期'] = trend_df[hdr[0]].dt.date
+                    daily_counts = trend_df.groupby('日期').size().reset_index(name='案件量')
+                    
+                    fig_trend = px.line(daily_counts, x='日期', y='案件量', text='案件量',
+                                       markers=True, line_shape='linear')
+                    fig_trend = apply_bold_style(fig_trend, f"⏳ 案件趨勢分析 ({custom_range[0] if len(custom_range)==2 else '最近'} 區間)")
+                    fig_trend.update_traces(
+                        line=dict(color='#1f77b4', width=4),
+                        marker=dict(size=12, color='#ff7f0e', line=dict(width=2, color='white')),
+                        textposition="top center"
+                    )
+                    st.plotly_chart(fig_trend, use_container_width=True, config=config_4k_safe)
+
+                    st.divider()
 
                     g1, g2 = st.columns(2)
                     with g1:
@@ -269,7 +284,7 @@ with tab2:
                     
                     st.divider()
 
-                    # 3. 場站異常類別交叉分析 - 圖例右置
+                    # 3. 場站異常類別交叉分析
                     cross_df = wk_df[wk_df[hdr[1]].isin(top_10_stations)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross_df.columns = ['場站', '異常類別', '件數']
                     fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', text='件數', 
@@ -290,4 +305,4 @@ with tab2:
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 場站更新鎖定版")
+st.caption("© 2026 應安客服系統 - 2/24 趨勢分析整合版")
