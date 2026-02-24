@@ -17,7 +17,6 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
-    /* 標記變色樣式 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -26,7 +25,6 @@ st.markdown("""
         border: 1px solid #c8e6c9;
     }
     
-    /* 懸停預覽樣式 */
     .hover-text {
         cursor: help;
         color: #1f77b4;
@@ -63,7 +61,7 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
-# --- [更新] 指定類別色彩映射 ---
+# 指定類別色彩映射
 CATEGORY_COLOR_MAP = {
     "身障優惠折抵": "blue",
     "繳費機異常": "green",
@@ -189,7 +187,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (自定義色彩鎖定版) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -218,7 +216,18 @@ with tab2:
                         }
                     }
 
+                    # --- 圖表樣式優化函式 ---
                     def apply_bold_style(fig, title_text, is_stacked=False):
+                        # 圖例設定：若為堆疊圖，將類別移至右側垂直排列
+                        legend_config = None
+                        if is_stacked:
+                            legend_config = dict(
+                                font=dict(size=16, color="#000000"),
+                                orientation="v",  # 垂直排列
+                                yanchor="top", y=1,
+                                xanchor="left", x=1.02  # 移至圖表右側
+                            )
+                        
                         fig.update_layout(
                             font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
                             title=dict(
@@ -227,16 +236,16 @@ with tab2:
                                 y=0.95, x=0.5, xanchor='center', yanchor='top'
                             ),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=120, b=120, l=100, r=100),
+                            margin=dict(t=120, b=150, l=100, r=180 if is_stacked else 100), # 增加右邊距放圖例，增加底邊距給場站名
                             showlegend=True if is_stacked else False,
-                            legend=dict(font=dict(size=16, color="#000000"), orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5) if is_stacked else None
+                            legend=legend_config
                         )
                         fig.update_traces(
                             textfont=dict(size=18 if is_stacked else 22, color="#000000", weight="bold"),
                             textposition='inside' if is_stacked else 'outside',
                             marker_line_color='#000000', marker_line_width=1.5
                         )
-                        fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-30)
+                        fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-35) # 稍微增加傾斜度避免重疊
                         fig.update_yaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
                         return fig
 
@@ -259,7 +268,7 @@ with tab2:
                     
                     st.divider()
 
-                    # 3. 場站異常類別交叉分析 - 套用自定義色彩
+                    # 3. 場站異常類別交叉分析 - 圖例右置
                     cross_df = wk_df[wk_df[hdr[1]].isin(top_10_stations)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross_df.columns = ['場站', '異常類別', '件數']
                     fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', text='件數', 
@@ -280,4 +289,4 @@ with tab2:
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 自定義色彩鎖定版")
+st.caption("© 2026 應安客服系統 - 2/24 圖例佈局優化版")
