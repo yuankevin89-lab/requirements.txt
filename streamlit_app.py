@@ -139,7 +139,7 @@ with tab1:
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
-                    st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
+                    st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, [""]*8
                 else:
                     sheet.append_row(row)
                 st.session_state.form_id += 1 
@@ -147,6 +147,7 @@ with tab1:
             else:
                 st.error("請正確選擇填單人與場站")
 
+    # --- 最近紀錄 ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -203,11 +204,10 @@ with tab2:
                 if len(custom_range) == 2:
                     wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= custom_range[0]) & (df_s[hdr[0]].dt.date <= custom_range[1])]
                 else:
-                    wk_df = df_s.tail(100)
+                    wk_df = df_s.tail(200) # 預抓多一點以支援趨勢比較
 
                 if not wk_df.empty:
                     st.divider()
-                    st.metric("當前區間總案件數", f"{len(wk_df)} 件")
                     
                     config_4k_safe = {
                         'toImageButtonOptions': {
@@ -218,49 +218,58 @@ with tab2:
 
                     # --- 圖表樣式優化函式 ---
                     def apply_bold_style(fig, title_text, is_stacked=False):
-                        legend_config = None
-                        if is_stacked:
-                            legend_config = dict(
-                                font=dict(size=16, color="#000000"),
-                                orientation="v",
-                                yanchor="top", y=1,
-                                xanchor="left", x=1.02
-                            )
+                        legend_config = dict(
+                            font=dict(size=16, color="#000000"),
+                            orientation="v", yanchor="top", y=1, xanchor="left", x=1.02
+                        ) if (is_stacked or "趨勢" in title_text) else None
                         
                         fig.update_layout(
                             font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
-                            title=dict(
-                                text=f"<b>{title_text}</b>", 
-                                font=dict(size=32, color='#000000'),
-                                y=0.95, x=0.5, xanchor='center', yanchor='top'
-                            ),
+                            title=dict(text=f"<b>{title_text}</b>", font=dict(size=32), y=0.95, x=0.5, xanchor='center'),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=120, b=150, l=100, r=180 if is_stacked else 100),
-                            showlegend=True if is_stacked else False,
+                            margin=dict(t=120, b=150, l=100, r=180 if (is_stacked or "趨勢" in title_text) else 100),
+                            showlegend=True if (is_stacked or "趨勢" in title_text) else False,
                             legend=legend_config
                         )
                         fig.update_traces(
-                            textfont=dict(size=18 if is_stacked else 22, color="#000000", weight="bold"),
+                            textfont=dict(size=18, color="#000000", weight="bold"),
                             marker_line_color='#000000', marker_line_width=1.5
                         )
                         fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-35)
                         fig.update_yaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
                         return fig
 
-                    # --- 趨勢分析圖 (Trend Analysis) ---
-                    st.subheader("⏳ 案件量每日趨勢分析")
-                    trend_df = wk_df.copy()
-                    trend_df['日期'] = trend_df[hdr[0]].dt.date
-                    daily_counts = trend_df.groupby('日期').size().reset_index(name='案件量')
+                    # --- 🛠️ 核心：雙週重疊趨勢分析圖 ---
+                    st.subheader("⏳ 雙週案件效能對比趨勢")
+                    trend_data = df_s.copy()
+                    trend_data['日期'] = trend_data[hdr[0]].dt.date
+                    today = datetime.date.today()
                     
-                    fig_trend = px.line(daily_counts, x='日期', y='案件量', text='案件量',
-                                       markers=True, line_shape='linear')
-                    fig_trend = apply_bold_style(fig_trend, f"⏳ 案件趨勢分析 ({custom_range[0] if len(custom_range)==2 else '最近'} 區間)")
-                    fig_trend.update_traces(
-                        line=dict(color='#1f77b4', width=4),
-                        marker=dict(size=12, color='#ff7f0e', line=dict(width=2, color='white')),
-                        textposition="top center"
-                    )
+                    # 定義本週與上週區間
+                    tw_start = today - datetime.timedelta(days=6)
+                    lw_start = today - datetime.timedelta(days=13)
+                    lw_end = today - datetime.timedelta(days=7)
+                    
+                    def process_weekly_data(start, end, label):
+                        mask = (trend_data['日期'] >= start) & (trend_data['日期'] <= end)
+                        subset = trend_data.loc[mask].copy()
+                        subset['星期'] = pd.to_datetime(subset['日期']).dt.day_name()
+                        order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                        res = subset.groupby('星期').size().reindex(order, fill_value=0).reset_index(name='案件量')
+                        res['星期'] = res['星期'].replace({'Monday':'週一','Tuesday':'週二','Wednesday':'週三','Thursday':'週四','Friday':'週五','Saturday':'週六','Sunday':'週日'})
+                        res['週期'] = label
+                        return res
+
+                    df_tw = process_weekly_data(tw_start, today, "本週 (最近7日)")
+                    df_lw = process_weekly_data(lw_start, lw_end, "上週 (前7日)")
+                    df_compare = pd.concat([df_lw, df_tw])
+
+                    fig_trend = px.line(df_compare, x='星期', y='案件量', color='週期', 
+                                       markers=True, text='案件量',
+                                       color_discrete_map={"本週 (最近7日)": "#1f77b4", "上週 (前7日)": "#ff7f0e"})
+                    
+                    fig_trend = apply_bold_style(fig_trend, "⏳ 雙週同步對齊趨勢對比")
+                    fig_trend.update_traces(line=dict(width=5), marker=dict(size=12), textposition="top center")
                     st.plotly_chart(fig_trend, use_container_width=True, config=config_4k_safe)
 
                     st.divider()
@@ -269,8 +278,7 @@ with tab2:
                     with g1:
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
-                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', 
-                                     color_discrete_map=CATEGORY_COLOR_MAP)
+                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         fig1 = apply_bold_style(fig1, "📂 案件類別分佈")
                         st.plotly_chart(fig1, use_container_width=True, config=config_4k_safe)
                     
@@ -287,22 +295,11 @@ with tab2:
                     # 3. 場站異常類別交叉分析
                     cross_df = wk_df[wk_df[hdr[1]].isin(top_10_stations)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross_df.columns = ['場站', '異常類別', '件數']
-                    fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', text='件數', 
-                                  color_discrete_map=CATEGORY_COLOR_MAP)
+                    fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
                     fig3 = apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True)
                     st.plotly_chart(fig3, use_container_width=True, config=config_4k_safe)
-
-                    st.divider()
-                    
-                    cat_detail = cat_counts.sort_values(by='件數', ascending=True)
-                    fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數', color='類別', 
-                                    color_discrete_map=CATEGORY_COLOR_MAP)
-                    fig_bar = apply_bold_style(fig_bar, "📈 各類別精確統計")
-                    fig_bar.update_layout(showlegend=False, height=600, margin=dict(l=220, t=100, b=80))
-                    fig_bar.update_yaxes(tickfont=dict(size=20, weight="bold"), tickangle=0) 
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_safe)
 
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 趨勢分析整合版")
+st.caption("© 2026 應安客服系統 - 2/24 雙週重疊趨勢鎖定版")
