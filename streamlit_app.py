@@ -41,6 +41,7 @@ st.markdown("""
 tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- 2. 初始資料與連線 ---
+# [更新] 增加 "昆陽一"、"合宜A6東"、"合宜A6西"，並移除 "合宜A6"
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -50,12 +51,13 @@ STATION_LIST = [
     "北平東場","福州場","水源市場","重慶南","西寧市場","西園國宅","復興北","宏泰民生","新洲美福善場","福善一",
     "石牌二","中央北","紅毛城","三玉","士林場","永平社宅","涼州場","大龍峒社宅","成功場","洲子場","環山",
     "文湖場","民善場","行愛場","新明場","德明研推","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
-    "樹林水源","土城中華場","光正","合宜A2","合宜A3","合宜A6","裕民","中央二","中央三","陶都場","板橋文化1F","板橋文化B1",
-    "佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬","三重永福","徐匯場","蘆洲保和",
-    "蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場","龜山興富","竹東長春","竹南中山",
-    "銅鑼停一","台中黎明場","後龍","台中復興","台中復興二","文心場","台中大和屋","一銀北港","西螺","虎尾",
-    "民德","衛民","衛民二場","台南北門","台南永福","台南國華","台南民權","善化","仁德","台南中華場","致穩",
-    "台南康樂場","金財神","蘭井","友愛場","佳音西園","中華信義","敦南場","中華北門場","東大門場", "其他(未登入場站)"
+    "樹林水源","土城中華場","光正","合宜A2","合宜A3","昆陽一","合宜A6東","合宜A6西","裕民","中央二","中央三","陶都場",
+    "板橋文化1F","板橋文化B1","佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬",
+    "三重永福","徐匯場","蘆洲保和","蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場",
+    "龜山興富","竹東長春","竹南中山","銅鑼停一","台中黎明場","後龍","台中復興","台中復興二","文心場",
+    "台中大和屋","一銀北港","西螺","虎尾","民德","衛民","衛民二場","台南北門","台南永福","台南國華",
+    "台南民權","善化","仁德","台南中華場","致穩","台南康樂場","金財神","蘭井","友愛場","佳音西園",
+    "中華信義","敦南場","中華北門場","東大門場", "其他(未登入場站)"
 ]
 
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
@@ -138,7 +140,7 @@ with tab1:
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
-                    st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
+                    st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, [""]*8
                 else:
                     sheet.append_row(row)
                 st.session_state.form_id += 1 
@@ -218,14 +220,13 @@ with tab2:
 
                     # --- 圖表樣式優化函式 ---
                     def apply_bold_style(fig, title_text, is_stacked=False):
-                        # 圖例設定：若為堆疊圖，將類別移至右側垂直排列
                         legend_config = None
                         if is_stacked:
                             legend_config = dict(
                                 font=dict(size=16, color="#000000"),
-                                orientation="v",  # 垂直排列
+                                orientation="v",
                                 yanchor="top", y=1,
-                                xanchor="left", x=1.02  # 移至圖表右側
+                                xanchor="left", x=1.02
                             )
                         
                         fig.update_layout(
@@ -236,7 +237,7 @@ with tab2:
                                 y=0.95, x=0.5, xanchor='center', yanchor='top'
                             ),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=120, b=150, l=100, r=180 if is_stacked else 100), # 增加右邊距放圖例，增加底邊距給場站名
+                            margin=dict(t=120, b=150, l=100, r=180 if is_stacked else 100),
                             showlegend=True if is_stacked else False,
                             legend=legend_config
                         )
@@ -245,7 +246,7 @@ with tab2:
                             textposition='inside' if is_stacked else 'outside',
                             marker_line_color='#000000', marker_line_width=1.5
                         )
-                        fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-35) # 稍微增加傾斜度避免重疊
+                        fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-35)
                         fig.update_yaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
                         return fig
 
@@ -289,4 +290,4 @@ with tab2:
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 圖例佈局優化版")
+st.caption("© 2026 應安客服系統 - 2/24 場站更新鎖定版")
