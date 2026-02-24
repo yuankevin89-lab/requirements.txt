@@ -74,7 +74,6 @@ def init_connection():
 client = init_connection()
 sheet = client.open("客服作業表").sheet1 if client else None
 
-# 初始化狀態
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
 if "form_id" not in st.session_state:
@@ -92,7 +91,6 @@ with tab1:
 
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
         d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
-        # 案件時間紀錄至分鐘
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
         st.info(f"🕒 案件時間：{f_dt}")
         
@@ -132,12 +130,9 @@ with tab1:
                 row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
-                    st.session_state.edit_mode = False
-                    st.session_state.edit_data = [""]*8
+                    st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
                 else:
                     sheet.append_row(row)
-                
-                # 成功送出後更換 ID，強制清空欄位
                 st.session_state.form_id += 1 
                 st.rerun()
             else:
@@ -149,20 +144,13 @@ with tab1:
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
-            valid_rows = []
-            for i, r in enumerate(all_raw[1:]):
-                if any(str(c).strip() for c in r):
-                    valid_rows.append((i+2, r))
-            
+            valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
             search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", placeholder="輸入關鍵字...").strip().lower()
             
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
-            
             if search_q:
-                for idx, r in valid_rows:
-                    if any(search_q in str(cell).lower().strip() for cell in r if str(cell).strip()):
-                        display_list.append((idx, r))
+                display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
             else:
                 for idx, r in valid_rows:
                     try:
@@ -174,26 +162,23 @@ with tab1:
             if display_list:
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
-                for col, t in zip(cols, headers):
-                    col.markdown(f"**{t}**")
-                st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+                for col, t in zip(cols, headers): col.markdown(f"**{t}**")
                 
                 for r_idx, r_val in reversed(display_list):
-                    with st.container():
-                        c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                        c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
-                        c[3].write(r_val[3]); c[4].write(r_val[4])
-                        clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;').replace("'", "&apos;")
-                        short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
-                        c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
-                        c[6].write(r_val[7])
-                        if c[7].button("📝", key=f"ed_{r_idx}"):
-                            st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
-                            st.rerun()
-                        c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
-                        st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
+                    c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
+                    c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2])
+                    c[3].write(r_val[3]); c[4].write(r_val[4])
+                    clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
+                    short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
+                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
+                    c[6].write(r_val[7])
+                    if c[7].button("📝", key=f"ed_{r_idx}"):
+                        st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
+                        st.rerun()
+                    c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
+                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (全柱狀圖優化版) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -205,70 +190,77 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                custom_range = st.date_input("📅 選擇指定統計週期", value=[], help="選取開始與結束日期後，系統將自動更新報表。")
-                
+                custom_range = st.date_input("📅 選擇指定統計週期", value=[])
                 if len(custom_range) == 2:
-                    start_date, end_date = custom_range
+                    wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= custom_range[0]) & (df_s[hdr[0]].dt.date <= custom_range[1])]
                 else:
                     today = datetime.datetime.now(tw_timezone).date()
-                    start_date = today - datetime.timedelta(days=today.weekday() + 7)
-                    end_date = start_date + datetime.timedelta(days=6)
-                
-                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= start_date) & (df_s[hdr[0]].dt.date <= end_date)]
+                    wk_df = df_s.loc[df_s[hdr[0]].dt.date == today]
 
                 if not wk_df.empty:
                     st.divider()
+                    st.metric("總案件數", f"{len(wk_df)} 件")
                     
+                    # 圖表通用下載設定 (4K 放大增強)
+                    config_4k = {
+                        'toImageButtonOptions': {
+                            'format': 'png',
+                            'filename': '應安統計圖表_4K',
+                            'height': 1080,
+                            'width': 1920,
+                            'scale': 4 
+                        }
+                    }
+
+                    # 圖表樣式統一強化函數
+                    def style_chart(fig, title_text):
+                        fig.update_layout(
+                            font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
+                            title=dict(text=title_text, font=dict(size=24, color='#000000')),
+                            paper_bgcolor='white', plot_bgcolor='white',
+                            margin=dict(t=80, b=80, l=60, r=40),
+                            showlegend=False
+                        )
+                        fig.update_traces(
+                            textfont=dict(size=20, color="#000000"),
+                            textposition='outside'
+                        )
+                        fig.update_xaxes(tickfont=dict(size=16, color="#000000", family="Arial Black"), gridcolor="#DDDDDD")
+                        fig.update_yaxes(tickfont=dict(size=16, color="#000000", family="Arial Black"), gridcolor="#DDDDDD")
+                        return fig
+
                     g1, g2 = st.columns(2)
-                    common_layout = dict(
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.5, xanchor="center", x=0.5),
-                        margin=dict(t=50, b=150, l=20, r=20),
-                        height=550
-                    )
                     
+                    # 1. 類別比例分析 (改為直立柱狀圖)
                     with g1:
-                        fig1 = px.pie(wk_df, names=hdr[5], title="📂 類別比例分析", hole=0.4)
-                        fig1.update_traces(textinfo='percent', textposition='inside')
-                        fig1.update_layout(**common_layout)
-                        st.plotly_chart(fig1, use_container_width=True)
+                        cat_counts = wk_df[hdr[5]].value_counts().reset_index()
+                        cat_counts.columns = ['類別', '件數']
+                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', 
+                                      color_discrete_sequence=px.colors.qualitative.Bold)
+                        fig1 = style_chart(fig1, "📂 案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_4k)
                     
+                    # 2. 場站比例分析 (改為直立柱狀圖，Top 10)
                     with g2:
-                        # [修正邏輯] 場站比例分析：僅顯示前十名，其餘拿掉
-                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
+                        st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
-                        
-                        # 僅保留前 10 名數據，不進行「其他」歸類
-                        plot_df = st_counts.head(10)
-                            
-                        fig2 = px.pie(plot_df, values='件數', names='場站', title="🏢 場站比例分析 (Top 10)", hole=0.4)
-                        fig2.update_traces(textinfo='percent', textposition='inside')
-                        fig2.update_layout(**common_layout)
-                        st.plotly_chart(fig2, use_container_width=True)
+                        fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站',
+                                      color_discrete_sequence=px.colors.qualitative.Vivid)
+                        fig2 = style_chart(fig2, "🏢 場站排名 (Top 10)")
+                        fig2.update_xaxes(tickangle=35)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_4k)
                     
                     st.divider()
-                    st.subheader("📈 詳細數據統計")
                     
-                    cat_counts = wk_df[hdr[5]].value_counts().reset_index()
-                    cat_counts.columns = ['類別', '件數']
-                    cat_counts = cat_counts.sort_values(by='件數', ascending=True)
-                    
-                    fig_bar = px.bar(cat_counts, x='件數', y='類別', orientation='h', 
-                                     title=f"各類別件數明細 ({start_date} ~ {end_date})",
-                                     text='件數', color='件數', color_continuous_scale='Blues')
-                    
-                    fig_bar.update_traces(textposition='outside')
-                    fig_bar.update_layout(
-                        height=400,
-                        margin=dict(t=50, b=50, l=20, r=50),
-                        xaxis_title="案件數量",
-                        yaxis_title="",
-                        coloraxis_showscale=False
-                    )
-                    
-                    st.metric("總案件數", f"{len(wk_df)} 件")
-                    st.plotly_chart(fig_bar, use_container_width=True)
+                    # 3. 詳細數據統計 (橫向柱狀圖)
+                    cat_detail = cat_counts.sort_values(by='件數', ascending=True)
+                    fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數',
+                                     color='件數', color_continuous_scale='Turbo')
+                    fig_bar = style_chart(fig_bar, "📈 各類別精確件數明細")
+                    fig_bar.update_layout(coloraxis_showscale=False, height=500)
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k)
 
                 else: 
-                    st.warning(f"⚠️ 查無報修資料。")
+                    st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/23 Top 10 鎖定版")
+st.caption("© 2026 應安客服系統 - 2/24 全柱狀圖 4K 強化版")
