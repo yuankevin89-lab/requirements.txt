@@ -253,4 +253,4 @@ with tab2:
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 ")
+st.caption("© 2026 應安客服系統 - 2/24 全功能整合鎖定版")
