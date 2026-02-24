@@ -178,7 +178,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (全柱狀圖優化版) ---
+# --- Tab 2: 數據統計 (下載字體特大強化版) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -194,73 +194,90 @@ with tab2:
                 if len(custom_range) == 2:
                     wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= custom_range[0]) & (df_s[hdr[0]].dt.date <= custom_range[1])]
                 else:
-                    today = datetime.datetime.now(tw_timezone).date()
-                    wk_df = df_s.loc[df_s[hdr[0]].dt.date == today]
+                    wk_df = df_s.tail(50)
 
                 if not wk_df.empty:
                     st.divider()
                     st.metric("總案件數", f"{len(wk_df)} 件")
                     
-                    # 圖表通用下載設定 (4K 放大增強)
-                    config_4k = {
+                    # --- 核心優化：下載圖檔設定 (Scale 4x) ---
+                    config_4k_ultra = {
                         'toImageButtonOptions': {
                             'format': 'png',
-                            'filename': '應安統計圖表_4K',
+                            'filename': f'應安報表_{datetime.date.today()}',
                             'height': 1080,
                             'width': 1920,
                             'scale': 4 
                         }
                     }
 
-                    # 圖表樣式統一強化函數
-                    def style_chart(fig, title_text):
+                    # --- 核心優化：字體極大化樣式函數 ---
+                    def apply_ultra_style(fig, title_text):
                         fig.update_layout(
-                            font=dict(family="Arial Black, Microsoft JhengHei", size=18, color="#000000"),
-                            title=dict(text=title_text, font=dict(size=24, color='#000000')),
-                            paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=80, b=80, l=60, r=40),
+                            # 全局字體鎖定純黑 + 極粗
+                            font=dict(family="Arial Black, Gadget, sans-serif", size=24, color="#000000"),
+                            title=dict(text=f"<b>{title_text}</b>", font=dict(size=32, color='#000000')),
+                            paper_bgcolor='white', 
+                            plot_bgcolor='white',
+                            margin=dict(t=100, b=100, l=80, r=50),
                             showlegend=False
                         )
+                        # 數據標籤字體加大
                         fig.update_traces(
-                            textfont=dict(size=20, color="#000000"),
-                            textposition='outside'
+                            textfont=dict(size=26, color="#000000"),
+                            textposition='outside',
+                            marker_line_color='#000000',
+                            marker_line_width=2
                         )
-                        fig.update_xaxes(tickfont=dict(size=16, color="#000000", family="Arial Black"), gridcolor="#DDDDDD")
-                        fig.update_yaxes(tickfont=dict(size=16, color="#000000", family="Arial Black"), gridcolor="#DDDDDD")
+                        # 軸線加粗
+                        fig.update_xaxes(
+                            tickfont=dict(size=22, color="#000000"), 
+                            linecolor='#000000', 
+                            linewidth=3,
+                            gridcolor='#E5E5E5'
+                        )
+                        fig.update_yaxes(
+                            tickfont=dict(size=22, color="#000000"), 
+                            linecolor='#000000', 
+                            linewidth=3,
+                            gridcolor='#E5E5E5'
+                        )
                         return fig
 
                     g1, g2 = st.columns(2)
                     
-                    # 1. 類別比例分析 (改為直立柱狀圖)
+                    # 1. 類別比例分析 (柱狀圖)
                     with g1:
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
-                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', 
-                                      color_discrete_sequence=px.colors.qualitative.Bold)
-                        fig1 = style_chart(fig1, "📂 案件類別分佈")
-                        st.plotly_chart(fig1, use_container_width=True, config=config_4k)
+                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', 
+                                      color='類別', color_discrete_sequence=px.colors.qualitative.Bright)
+                        fig1 = apply_ultra_style(fig1, "📂 案件類別分佈")
+                        st.plotly_chart(fig1, use_container_width=True, config=config_4k_ultra)
                     
-                    # 2. 場站比例分析 (改為直立柱狀圖，Top 10)
+                    # 2. 場站比例分析 (Top 10 柱狀圖)
                     with g2:
                         st_counts = wk_df[hdr[1]].value_counts().reset_index().head(10)
                         st_counts.columns = ['場站', '件數']
-                        fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', color='場站',
-                                      color_discrete_sequence=px.colors.qualitative.Vivid)
-                        fig2 = style_chart(fig2, "🏢 場站排名 (Top 10)")
-                        fig2.update_xaxes(tickangle=35)
-                        st.plotly_chart(fig2, use_container_width=True, config=config_4k)
+                        fig2 = px.bar(st_counts, x='場站', y='件數', text='件數', 
+                                      color='場站', color_discrete_sequence=px.colors.qualitative.Set1)
+                        fig2 = apply_ultra_style(fig2, "🏢 場站排名 (Top 10)")
+                        fig2.update_xaxes(tickangle=30)
+                        st.plotly_chart(fig2, use_container_width=True, config=config_4k_ultra)
                     
                     st.divider()
                     
                     # 3. 詳細數據統計 (橫向柱狀圖)
                     cat_detail = cat_counts.sort_values(by='件數', ascending=True)
                     fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數',
-                                     color='件數', color_continuous_scale='Turbo')
-                    fig_bar = style_chart(fig_bar, "📈 各類別精確件數明細")
-                    fig_bar.update_layout(coloraxis_showscale=False, height=500)
-                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k)
+                                     color='件數', color_continuous_scale='Reds')
+                    fig_bar = apply_ultra_style(fig_bar, "📈 各類別精確統計")
+                    fig_bar.update_layout(coloraxis_showscale=False, height=600, margin=dict(l=200))
+                    # 橫向圖表的 Y 軸文字需要額外加大以防擠壓
+                    fig_bar.update_yaxes(tickfont=dict(size=24))
+                    st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_ultra)
 
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 全柱狀圖 4K 強化版")
+st.caption("© 2026 應安客服系統 - 2/24 4K特大字體強化版")
