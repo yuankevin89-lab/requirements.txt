@@ -204,7 +204,7 @@ with tab2:
                 if len(custom_range) == 2:
                     wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= custom_range[0]) & (df_s[hdr[0]].dt.date <= custom_range[1])]
                 else:
-                    wk_df = df_s.tail(200) # 預抓多一點以支援趨勢比較
+                    wk_df = df_s.tail(300)
 
                 if not wk_df.empty:
                     st.divider()
@@ -216,61 +216,55 @@ with tab2:
                         }
                     }
 
-                    # --- 圖表樣式優化函式 ---
                     def apply_bold_style(fig, title_text, is_stacked=False):
                         legend_config = dict(
                             font=dict(size=16, color="#000000"),
                             orientation="v", yanchor="top", y=1, xanchor="left", x=1.02
-                        ) if (is_stacked or "趨勢" in title_text) else None
+                        ) if (is_stacked or "對比" in title_text) else None
                         
                         fig.update_layout(
                             font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
                             title=dict(text=f"<b>{title_text}</b>", font=dict(size=32), y=0.95, x=0.5, xanchor='center'),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=120, b=150, l=100, r=180 if (is_stacked or "趨勢" in title_text) else 100),
-                            showlegend=True if (is_stacked or "趨勢" in title_text) else False,
+                            margin=dict(t=120, b=150, l=100, r=180 if (is_stacked or "對比" in title_text) else 100),
+                            showlegend=True if (is_stacked or "對比" in title_text) else False,
                             legend=legend_config
-                        )
-                        fig.update_traces(
-                            textfont=dict(size=18, color="#000000", weight="bold"),
-                            marker_line_color='#000000', marker_line_width=1.5
                         )
                         fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-35)
                         fig.update_yaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
                         return fig
 
-                    # --- 🛠️ 核心：雙週重疊趨勢分析圖 ---
-                    st.subheader("⏳ 雙週案件效能對比趨勢")
+                    # --- 🛠️ 核心修改：雙週類別案件成長對比 ---
+                    st.subheader("⏳ 雙週案件類別對比分析")
                     trend_data = df_s.copy()
                     trend_data['日期'] = trend_data[hdr[0]].dt.date
                     today = datetime.date.today()
                     
-                    # 定義本週與上週區間
+                    # 定義區間
                     tw_start = today - datetime.timedelta(days=6)
                     lw_start = today - datetime.timedelta(days=13)
                     lw_end = today - datetime.timedelta(days=7)
                     
-                    def process_weekly_data(start, end, label):
+                    def process_category_compare(start, end, label):
                         mask = (trend_data['日期'] >= start) & (trend_data['日期'] <= end)
                         subset = trend_data.loc[mask].copy()
-                        subset['星期'] = pd.to_datetime(subset['日期']).dt.day_name()
-                        order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                        res = subset.groupby('星期').size().reindex(order, fill_value=0).reset_index(name='案件量')
-                        res['星期'] = res['星期'].replace({'Monday':'週一','Tuesday':'週二','Wednesday':'週三','Thursday':'週四','Friday':'週五','Saturday':'週六','Sunday':'週日'})
+                        # 以 CATEGORY_LIST 為基準進行統計
+                        res = subset[hdr[5]].value_counts().reindex(CATEGORY_LIST, fill_value=0).reset_index(name='件數')
+                        res.columns = ['類別', '件數']
                         res['週期'] = label
                         return res
 
-                    df_tw = process_weekly_data(tw_start, today, "本週 (最近7日)")
-                    df_lw = process_weekly_data(lw_start, lw_end, "上週 (前7日)")
-                    df_compare = pd.concat([df_lw, df_tw])
+                    df_tw_cat = process_category_compare(tw_start, today, "本週 (最近7日)")
+                    df_lw_cat = process_category_compare(lw_start, lw_end, "上週 (前7日)")
+                    df_cat_compare = pd.concat([df_lw_cat, df_tw_cat])
 
-                    fig_trend = px.line(df_compare, x='星期', y='案件量', color='週期', 
-                                       markers=True, text='案件量',
-                                       color_discrete_map={"本週 (最近7日)": "#1f77b4", "上週 (前7日)": "#ff7f0e"})
+                    # 使用群組柱狀圖 (Grouped Bar Chart) 最適合類別對比
+                    fig_compare = px.bar(df_cat_compare, x='類別', y='件數', color='週期', barmode='group',
+                                        text='件數', color_discrete_map={"本週 (最近7日)": "#1f77b4", "上週 (前7日)": "#ff7f0e"})
                     
-                    fig_trend = apply_bold_style(fig_trend, "⏳ 雙週同步對齊趨勢對比")
-                    fig_trend.update_traces(line=dict(width=5), marker=dict(size=12), textposition="top center")
-                    st.plotly_chart(fig_trend, use_container_width=True, config=config_4k_safe)
+                    fig_compare = apply_bold_style(fig_compare, "⏳ 案件類別：本週 vs 上週 成長對比")
+                    fig_compare.update_traces(textposition='outside')
+                    st.plotly_chart(fig_compare, use_container_width=True, config=config_4k_safe)
 
                     st.divider()
 
@@ -279,7 +273,7 @@ with tab2:
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
                         fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
-                        fig1 = apply_bold_style(fig1, "📂 案件類別分佈")
+                        fig1 = apply_bold_style(fig1, "📂 當前區間案件分佈")
                         st.plotly_chart(fig1, use_container_width=True, config=config_4k_safe)
                     
                     with g2:
@@ -302,4 +296,4 @@ with tab2:
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 雙週重疊趨勢鎖定版")
+st.caption("© 2026 應安客服系統 - 2/24 類別對比分析鎖定版")
