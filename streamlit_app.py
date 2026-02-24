@@ -17,6 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
+    /* 標記變色樣式 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -25,6 +26,7 @@ st.markdown("""
         border: 1px solid #c8e6c9;
     }
     
+    /* 懸停預覽樣式 */
     .hover-text {
         cursor: help;
         color: #1f77b4;
@@ -60,6 +62,10 @@ STATION_LIST = [
 
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
+
+# 定義統一的色彩規格映射
+CATEGORY_COLORS = px.colors.qualitative.Safe
+CATEGORY_COLOR_MAP = {cat: color for cat, color in zip(CATEGORY_LIST, CATEGORY_COLORS)}
 
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -176,7 +182,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (新增交叉分析圖表) ---
+# --- Tab 2: 數據統計 (色彩規格統一版) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -219,20 +225,21 @@ with tab2:
                             legend=dict(font=dict(size=16, color="#000000"), orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5) if is_stacked else None
                         )
                         fig.update_traces(
-                            textfont=dict(size=18 if is_stacked else 22, color="#000000"),
+                            textfont=dict(size=18 if is_stacked else 22, color="#000000", weight="bold"),
                             textposition='inside' if is_stacked else 'outside',
                             marker_line_color='#000000', marker_line_width=1.5
                         )
-                        fig.update_xaxes(tickfont=dict(size=18, color="#000000"), linecolor='#000000', linewidth=2.5, tickangle=-30)
-                        fig.update_yaxes(tickfont=dict(size=18, color="#000000"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
+                        fig.update_xaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, tickangle=-30)
+                        fig.update_yaxes(tickfont=dict(size=18, color="#000000", weight="bold"), linecolor='#000000', linewidth=2.5, gridcolor='#F0F0F0')
                         return fig
 
-                    # 1. 類別分佈 & 2. 場站排名
                     g1, g2 = st.columns(2)
                     with g1:
                         cat_counts = wk_df[hdr[5]].value_counts().reset_index()
                         cat_counts.columns = ['類別', '件數']
-                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', color_discrete_sequence=px.colors.qualitative.Safe)
+                        # 套用統一色彩映射
+                        fig1 = px.bar(cat_counts, x='類別', y='件數', text='件數', color='類別', 
+                                     color_discrete_map=CATEGORY_COLOR_MAP)
                         fig1 = apply_bold_style(fig1, "📂 案件類別分佈")
                         st.plotly_chart(fig1, use_container_width=True, config=config_4k_safe)
                     
@@ -246,27 +253,26 @@ with tab2:
                     
                     st.divider()
 
-                    # 3. [新增] 場站異常類別交叉分析 (堆疊柱狀圖)
+                    # 3. 場站異常類別交叉分析 - 套用統一色彩
                     cross_df = wk_df[wk_df[hdr[1]].isin(top_10_stations)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross_df.columns = ['場站', '異常類別', '件數']
-                    
-                    fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', 
-                                  text='件數', title="場站異常類別交叉分析",
-                                  color_discrete_sequence=px.colors.qualitative.Bold)
+                    fig3 = px.bar(cross_df, x='場站', y='件數', color='異常類別', text='件數', 
+                                  color_discrete_map=CATEGORY_COLOR_MAP)
                     fig3 = apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True)
                     st.plotly_chart(fig3, use_container_width=True, config=config_4k_safe)
 
                     st.divider()
                     
-                    # 4. 類別明細 (橫向)
                     cat_detail = cat_counts.sort_values(by='件數', ascending=True)
-                    fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數', color='件數', color_continuous_scale='Turbo')
+                    # 橫向圖表也套用統一色彩
+                    fig_bar = px.bar(cat_detail, x='件數', y='類別', orientation='h', text='件數', color='類別', 
+                                    color_discrete_map=CATEGORY_COLOR_MAP)
                     fig_bar = apply_bold_style(fig_bar, "📈 各類別精確統計")
-                    fig_bar.update_layout(coloraxis_showscale=False, height=600, margin=dict(l=220, t=100, b=80))
-                    fig_bar.update_yaxes(tickfont=dict(size=20), tickangle=0) 
+                    fig_bar.update_layout(showlegend=False, height=600, margin=dict(l=220, t=100, b=80))
+                    fig_bar.update_yaxes(tickfont=dict(size=20, weight="bold"), tickangle=0) 
                     st.plotly_chart(fig_bar, use_container_width=True, config=config_4k_safe)
 
                 else: 
                     st.warning("⚠️ 此週期內查無報修資料。")
 
-st.caption("© 2026 應安客服系統 - 2/24 交叉分析增強版")
+st.caption("© 2026 應安客服系統 - 2/24 色彩規格統一版")
