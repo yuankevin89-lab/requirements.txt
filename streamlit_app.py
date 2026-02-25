@@ -250,4 +250,4 @@ with tab2:
                     fig3 = px.bar(cross, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安停車 ")
+st.caption("© 2026 應安停車 | 2/25 最新智慧同步基準版 (3秒極速刷新)")
