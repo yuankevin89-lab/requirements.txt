@@ -17,7 +17,7 @@ except ImportError:
 # --- 1. 頁面基本設定與專業樣式 (4K 投影增強) ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
-# 設定每 3 秒自動刷新一次
+# 設定每 3 秒自動刷新一次 (3000 毫秒)
 if has_refresh:
     st_autorefresh(interval=3000, key="datarefresh")
 
@@ -55,8 +55,8 @@ st.markdown("""
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 標題區 (無 LOGO 版本) ---
-st.title("應安客服線上登記系統 (2/25 最終基準版)")
+# --- 2. 標題區 (恢復最純淨版本，無多餘字樣) ---
+st.title("應安客服線上登記系統")
 
 # --- 3. 初始資料與連線 ---
 STATION_LIST = [
@@ -150,7 +150,7 @@ with tab1:
 
     # --- 最近紀錄 (3秒同步刷新) ---
     st.markdown("---")
-    st.subheader("🔍 最近紀錄 (交班動態 - 3秒自動同步)")
+    st.subheader("🔍 最近紀錄 (交班動態 - 每3秒自動同步)")
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
@@ -184,7 +184,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.divider()
 
-# --- Tab 2: 數據統計 (維持 2/25 基準) ---
+# --- Tab 2: 數據統計 (維持 4K 投影樣式) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -229,4 +229,4 @@ with tab2:
                     fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週": "#1f77b4", "上週": "#ff7f0e"})
                     st.plotly_chart(apply_bold_style(fig_c, "⏳ 案件類別：本週 vs 上週 成長對比"), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安停車 | 2/25 最終基準鎖定版 (3秒極速同步)")
+st.caption("© 2026 應安停車 | 2/25 最終基準鎖定版")
