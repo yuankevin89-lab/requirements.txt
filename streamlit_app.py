@@ -7,26 +7,41 @@ import pytz
 import plotly.express as px
 import plotly.graph_objects as go
 
-# --- 1. 頁面基本設定與專業樣式 ---
+# --- 1. 頁面基本設定與企業 Logo 樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
-st.markdown("""
+# 設定 Logo 圖片路徑 (請確保上傳圖片名為 公司LOGO-02.png)
+LOGO_URL = "公司LOGO-02.png"
+
+st.markdown(f"""
     <style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stAppDeployButton {display: none;}
-    .block-container {padding-top: 2rem; padding-bottom: 1rem;}
+    #MainMenu {{visibility: hidden;}}
+    header {{visibility: hidden;}}
+    footer {{visibility: hidden;}}
+    .stAppDeployButton {{display: none;}}
+    .block-container {{padding-top: 1rem; padding-bottom: 1rem;}}
     
-    [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
+    /* 右上角 Logo 定位 */
+    .logo-container {{
+        position: absolute;
+        top: -20px;
+        right: 0px;
+        z-index: 1000;
+    }}
+    .logo-container img {{
+        width: 180px; /* 調整 Logo 大小 */
+    }}
+
+    /* 表格勾選變色機制 */
+    [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {{
         background-color: #e8f5e9 !important;
         border-radius: 8px;
         padding: 10px;
         transition: background-color 0.3s ease;
         border: 1px solid #c8e6c9;
-    }
+    }}
     
-    .hover-text {
+    .hover-text {{
         cursor: help;
         color: #1f77b4;
         text-decoration: underline dotted;
@@ -35,13 +50,21 @@ st.markdown("""
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-    }
+    }}
     </style>
+    <div class="logo-container">
+        <img src="data:image/png;base64,{st.image(LOGO_URL, output_format="PNG") if False else ""}">
+    </div>
     """, unsafe_allow_html=True)
+
+# 實際在右上角顯示圖片 (使用 st.image 配合 columns 達成絕對位置效果)
+t_col1, t_col2 = st.columns([8, 2])
+with t_col2:
+    st.image(LOGO_URL, width=200)
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 初始資料與連線 ---
+# --- 2. 初始資料與基準名單 (2/24 鎖定版) ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -64,13 +87,9 @@ STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
 CATEGORY_COLOR_MAP = {
-    "身障優惠折抵": "blue",
-    "繳費機異常": "green",
-    "其他": "saddlebrown",
-    "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
-    "無法找零": px.colors.qualitative.Safe[2],
-    "網路異常": px.colors.qualitative.Safe[4],
-    "繳費問題相關": px.colors.qualitative.Safe[5]
+    "身障優惠折抵": "blue", "繳費機異常": "green", "其他": "saddlebrown",
+    "發票缺紙或卡紙": px.colors.qualitative.Safe[1], "無法找零": px.colors.qualitative.Safe[2],
+    "網路異常": px.colors.qualitative.Safe[4], "繳費問題相關": px.colors.qualitative.Safe[5]
 }
 
 def init_connection():
@@ -137,7 +156,6 @@ with tab1:
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (補回智慧顯示保底) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -154,7 +172,7 @@ with tab1:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
                         if dt >= eight_hrs_ago: display_list.append((idx, r))
                     except: continue
-                if not display_list: display_list = valid_rows[-3:] # 補回保底顯示最後三筆
+                if not display_list: display_list = valid_rows[-3:] # 智慧保底機制
 
             if display_list:
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
@@ -189,7 +207,7 @@ with tab2:
                 wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(300)
 
                 if not wk_df.empty:
-                    # 📥 補回：下載功能
+                    # CSV 下載按鈕
                     csv = wk_df.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("📥 下載統計報表 (CSV)", csv, f"應安報表_{datetime.date.today()}.csv", "text/csv")
                     
@@ -210,7 +228,7 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # A. 雙週類別對比 (群組柱狀圖)
+                    # A. 雙週類別對比 (群組柱狀圖 - 數字直顯)
                     st.subheader("⏳ 雙週案件類別對比分析")
                     t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
@@ -247,4 +265,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計 (橫向對比)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/24 終極全功能基準版")
+st.caption("© 2026 應安客服系統 - 2/24 終極企業品牌鎖定版")
