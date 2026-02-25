@@ -247,4 +247,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計 (橫向對比)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/24 終極全功能基準版")
+st.caption("© 2026 應安客服系統 ")
