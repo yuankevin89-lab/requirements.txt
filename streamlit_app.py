@@ -7,13 +7,12 @@ import pytz
 import plotly.express as px
 import os
 
-# --- 1. 頁面基本設定與右上角 Logo 優化 ---
+# --- 1. 頁面基本設定與右上角 Logo 強化版 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
-# Logo 檔案名稱 (請確認檔案與程式碼放在同一個資料夾)
+# Logo 檔案名稱 (請確認檔案上傳至與程式碼相同的資料夾)
 LOGO_FILE = "公司LOGO-02.png"
 
-# 使用 CSS 將 Logo 強制定位在右上角
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -22,15 +21,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1rem; padding-bottom: 1rem;}
     
-    /* 建立右上角浮動區域 */
-    .custom-logo {
-        position: fixed;
-        top: 45px;
-        right: 30px;
-        z-index: 999;
-    }
-    
-    /* 表格勾選變色 */
+    /* 表格勾選變色機制 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -38,21 +29,34 @@ st.markdown("""
         transition: background-color 0.3s ease;
         border: 1px solid #c8e6c9;
     }
+    
+    .hover-text {
+        cursor: help;
+        color: #1f77b4;
+        text-decoration: underline dotted;
+        display: inline-block;
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 顯示右上角內容 (如果圖檔失敗則顯示文字，避免 Error)
+# 右上角 Logo/標題顯示區塊 (修正路徑錯誤問題)
 with st.container():
-    c1, c2 = st.columns([8, 2])
-    with c2:
+    logo_col1, logo_col2 = st.columns([8, 2])
+    with logo_col2:
         if os.path.exists(LOGO_FILE):
-            st.image(LOGO_FILE, width=220)
+            st.image(LOGO_FILE, use_column_width=True)
         else:
-            st.markdown("<h2 style='text-align:right; color:#1f77b4;'>應安停車</h2>", unsafe_allow_html=True)
+            # 若圖檔不存在，則顯示格式化後的精美文字作為保底
+            st.markdown("<h2 style='text-align:right; color:#1f77b4; margin-bottom:0;'>應安停車</h2>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align:right; font-size:14px; color:gray; margin-top:0;'>客服管理系統</p>", unsafe_allow_html=True)
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 初始資料與基準名單 (2/24 鎖定版) ---
+# --- 2. 初始資料與 2/24 鎖定名單 ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -96,9 +100,9 @@ if "form_id" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 ---
+# --- Tab 1: 案件登記 (包含 8小時/保底機制) ---
 with tab1:
-    st.title("📝 客服案件登記")
+    st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
@@ -141,56 +145,60 @@ with tab1:
                 else: sheet.append_row(row)
                 st.session_state.form_id += 1 
                 st.rerun()
-            else: st.error("請正確填寫場站與填單人")
+            else: st.error("請正確選擇填單人與場站")
 
     st.markdown("---")
-    st.subheader("🔍 最近紀錄")
+    st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
             v_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
             sq = st.text_input("🔍 搜尋歷史紀錄", placeholder="輸入關鍵字...").strip().lower()
-            limit = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
+            limit_dt = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             d_list = []
             if sq: d_list = [(idx, r) for idx, r in v_rows if any(sq in str(cell).lower() for cell in r)]
             else:
                 for idx, r in v_rows:
                     try:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
-                        if dt >= limit: d_list.append((idx, r))
+                        if dt >= limit_dt: d_list.append((idx, r))
                     except: continue
-                if not d_list: d_list = v_rows[-3:] # 智慧保底顯示
+                if not d_list: d_list = v_rows[-3:] # 2/24 補齊之智慧保底機制
 
             if d_list:
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
-                headers = ["日期", "場站", "姓名", "電話", "車號", "描述", "填單人", "編輯", "標記"]
+                headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers): col.markdown(f"**{t}**")
                 for r_idx, r_val in reversed(d_list):
                     c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                     c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2]); c[3].write(r_val[3]); c[4].write(r_val[4])
-                    c[5].write(r_val[6][:15]+"..." if len(r_val[6])>15 else r_val[6])
+                    clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
+                    short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
+                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
                     c[6].write(r_val[7])
-                    if c[7].button("📝", key=f"e_{r_idx}"):
+                    if c[7].button("📝", key=f"ed_{r_idx}"):
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
-                    c[8].checkbox(" ", key=f"c_{r_idx}", label_visibility="collapsed")
+                    c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
+                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (繼承 2/24 最新基準) ---
+# --- Tab 2: 數據統計 (完整繼承 2/24 規格) ---
 with tab2:
-    st.title("📊 數據統計分析")
+    st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
-            raw_s = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
-            if len(raw_s) > 1:
-                hdr = raw_s[0]
-                df = pd.DataFrame(raw_s[1:], columns=hdr)
-                df[hdr[0]] = pd.to_datetime(df[hdr[0]], errors='coerce')
-                df = df.dropna(subset=[hdr[0]])
+            raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
+            if len(raw_stat) > 1:
+                hdr = raw_stat[0]
+                df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
+                df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
+                df_s = df_s.dropna(subset=[hdr[0]])
                 
-                c_range = st.date_input("📅 選擇統計週期", value=[])
-                wk_df = df.loc[(df[hdr[0]].dt.date >= c_range[0]) & (df[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df.tail(300)
+                c_range = st.date_input("📅 選擇指定統計週期", value=[])
+                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(300)
 
                 if not wk_df.empty:
+                    # CSV 下載按鈕 (2/24 補齊)
                     csv = wk_df.to_csv(index=False).encode('utf-8-sig')
                     st.download_button("📥 下載統計報表 (CSV)", csv, f"應安報表_{datetime.date.today()}.csv", "text/csv")
                     
@@ -211,9 +219,9 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, weight="bold", color="#000000"))
                         return fig
 
-                    # 1. 雙週對比 (最新 2/24 基準)
+                    # 1. 雙週成長對比 (2/24 核心功能：類別對齊 + 數字直顯)
                     st.subheader("⏳ 雙週案件類別成長對比")
-                    t_data = df.copy(); t_data['D'] = t_data[hdr[0]].dt.date
+                    t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
                     tw_s, lw_s, lw_e = td-datetime.timedelta(days=6), td-datetime.timedelta(days=13), td-datetime.timedelta(days=7)
                     def get_c(s, e, l):
@@ -224,7 +232,6 @@ with tab2:
                     fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週": "#1f77b4", "上週": "#ff7f0e"})
                     st.plotly_chart(apply_4k_style(fig_c, "⏳ 案件類別：本週 vs 上週 對比"), use_container_width=True, config=config_4k)
 
-                    # 2. 當前區間與場站排行
                     st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
@@ -237,14 +244,13 @@ with tab2:
                         fig2 = px.bar(st_c, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(apply_4k_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
 
-                    # 3. 堆疊分析與橫向統計
                     st.divider()
                     cross = wk_df[wk_df[hdr[1]].isin(top10)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     fig3 = px.bar(cross, x=hdr[1], y='件數', color=hdr[5], text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_4k_style(fig3, "🔍 場站 vs. 異常類別 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
-                    
+
                     st.divider()
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_4k_style(fig4, "📈 類別精確統計 (橫向)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/25 企業視覺穩定基準版")
+st.caption("© 2026 應安客服系統 - 2/25 企業視覺最終鎖定版")
