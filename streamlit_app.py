@@ -5,13 +5,25 @@ import datetime
 import pandas as pd
 import pytz
 import plotly.express as px
-import os
+import base64
+from io import BytesIO
+from PIL import Image
 
-# --- 1. 頁面基本設定與右上角 Logo 強化版 ---
+# --- 1. 頁面基本設定與 Base64 Logo 內嵌技術 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
-# Logo 檔案名稱 (請確認檔案上傳至與程式碼相同的資料夾)
-LOGO_FILE = "公司LOGO-02.png"
+# 將您上傳的 Logo 轉換為 Base64 (避免檔案遺失報錯)
+def get_base64_logo():
+    try:
+        # 直接讀取您提供的公司LOGO-02.png
+        img = Image.open("公司LOGO-02.png")
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode()
+    except:
+        return None
+
+logo_base64 = get_base64_logo()
 
 st.markdown("""
     <style>
@@ -21,7 +33,16 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1rem; padding-bottom: 1rem;}
     
-    /* 表格勾選變色機制 */
+    /* 右上角 Logo 定位區 */
+    .logo-container {
+        position: absolute;
+        top: 0px;
+        right: 0px;
+        text-align: right;
+        z-index: 1000;
+    }
+    
+    /* 4K 投影增強：表格勾選變色 */
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
         border-radius: 8px;
@@ -29,30 +50,17 @@ st.markdown("""
         transition: background-color 0.3s ease;
         border: 1px solid #c8e6c9;
     }
-    
-    .hover-text {
-        cursor: help;
-        color: #1f77b4;
-        text-decoration: underline dotted;
-        display: inline-block;
-        width: 100%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-# 右上角 Logo/標題顯示區塊 (修正路徑錯誤問題)
+# 顯示右上角 Logo 或保底文字
 with st.container():
-    logo_col1, logo_col2 = st.columns([8, 2])
-    with logo_col2:
-        if os.path.exists(LOGO_FILE):
-            st.image(LOGO_FILE, use_column_width=True)
+    c1, c2 = st.columns([8.2, 1.8])
+    with c2:
+        if logo_base64:
+            st.markdown(f'<div class="logo-container"><img src="data:image/png;base64,{logo_base64}" width="200"></div>', unsafe_allow_html=True)
         else:
-            # 若圖檔不存在，則顯示格式化後的精美文字作為保底
-            st.markdown("<h2 style='text-align:right; color:#1f77b4; margin-bottom:0;'>應安停車</h2>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align:right; font-size:14px; color:gray; margin-top:0;'>客服管理系統</p>", unsafe_allow_html=True)
+            st.markdown("<h2 style='text-align:right; color:#1f77b4; margin:0;'>應安停車</h2><p style='text-align:right; color:gray; font-size:14px; margin:0;'>客服管理系統</p>", unsafe_allow_html=True)
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
@@ -100,7 +108,7 @@ if "form_id" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 (包含 8小時/保底機制) ---
+# --- Tab 1: 案件登記 (包含保底機制與編輯模式) ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -163,7 +171,7 @@ with tab1:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
                         if dt >= limit_dt: d_list.append((idx, r))
                     except: continue
-                if not d_list: d_list = v_rows[-3:] # 2/24 補齊之智慧保底機制
+                if not d_list: d_list = v_rows[-3:] # 2/24 智慧保底機制
 
             if d_list:
                 cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
@@ -172,15 +180,12 @@ with tab1:
                 for r_idx, r_val in reversed(d_list):
                     c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
                     c[0].write(r_val[0]); c[1].write(r_val[1]); c[2].write(r_val[2]); c[3].write(r_val[3]); c[4].write(r_val[4])
-                    clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
-                    short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
-                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
+                    c[5].write(r_val[6][:15]+"..." if len(r_val[6])>15 else r_val[6])
                     c[6].write(r_val[7])
                     if c[7].button("📝", key=f"ed_{r_idx}"):
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
-                    st.markdown("<hr style='margin: 2px 0;'>", unsafe_allow_html=True)
 
 # --- Tab 2: 數據統計 (完整繼承 2/24 規格) ---
 with tab2:
@@ -232,6 +237,7 @@ with tab2:
                     fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週": "#1f77b4", "上週": "#ff7f0e"})
                     st.plotly_chart(apply_4k_style(fig_c, "⏳ 案件類別：本週 vs 上週 對比"), use_container_width=True, config=config_4k)
 
+                    # 其他 4K 統計圖表 (場站排行、類別分佈、堆疊分析)
                     st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
@@ -253,4 +259,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_4k_style(fig4, "📈 類別精確統計 (橫向)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/25 企業視覺最終鎖定版")
+st.caption("© 2026 應安客服系統 - 2/25 企業品牌最終基準版")
