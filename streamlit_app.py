@@ -8,21 +8,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from streamlit.components.v1 import html
 
-# --- 1. 頁面基本設定與專業樣式 ---
+# --- 1. 頁面基本設定與專業樣式 (4K 投影增強) ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
-
-# 使用 JavaScript 達成 3 秒自動刷新，避開 streamlit-autorefresh 的套件依賴問題
-my_js = """
-<script>
-window.parent.document.dispatchEvent(new CustomEvent("streamlit:render"));
-setTimeout(function(){
-    window.parent.location.reload();
-}, 3000); 
-</script>
-"""
-# 僅在非編輯模式下觸發自動刷新，避免填單到一半被跳掉
-if "edit_mode" in st.session_state and not st.session_state.edit_mode:
-    html(my_js, height=0)
 
 st.markdown("""
     <style>
@@ -32,7 +19,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1.5rem; padding-bottom: 1rem;}
     
-    /* 2/25 4K 投影增強：全域純黑加粗 */
+    /* 2/25 全域純黑加粗樣式 */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -58,7 +45,7 @@ st.markdown("""
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 標題區 (2/25 純淨版) ---
+# --- 2. 標題區 (恢復純淨標題) ---
 st.title("應安客服線上登記系統")
 
 # --- 3. 初始資料與連線 ---
@@ -83,12 +70,6 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
-CATEGORY_COLOR_MAP = {
-    "身障優惠折抵": "blue", "繳費機異常": "green", "其他": "saddlebrown",
-    "發票缺紙或卡紙": px.colors.qualitative.Safe[1], "無法找零": px.colors.qualitative.Safe[2],
-    "網路異常": px.colors.qualitative.Safe[4], "繳費問題相關": px.colors.qualitative.Safe[5]
-}
-
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -105,10 +86,24 @@ if "edit_mode" not in st.session_state:
 if "form_id" not in st.session_state:
     st.session_state.form_id = 0
 
+# --- 分頁導航 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
+
+# JavaScript 刷新指令 (3秒一次)
+refresh_js = """
+<script>
+setTimeout(function(){
+    window.parent.location.reload();
+}, 3000); 
+</script>
+"""
 
 # --- Tab 1: 案件登記 ---
 with tab1:
+    # 只有在案件登記頁且非編輯時，才執行 3 秒刷新
+    if not st.session_state.edit_mode:
+        html(refresh_js, height=0)
+
     now_ts = datetime.datetime.now(tw_timezone)
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
@@ -151,6 +146,7 @@ with tab1:
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
+    # --- 最近紀錄 ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態 - 每3秒自動同步)")
     if sheet:
@@ -186,9 +182,10 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.divider()
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (在此頁面會自動暫停刷新) ---
 with tab2:
     st.title("📊 數據統計與分析")
+    # 不呼叫 html(refresh_js)，讓管理員可以安心輸入密碼
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -231,4 +228,4 @@ with tab2:
                     fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週": "#1f77b4", "上週": "#ff7f0e"})
                     st.plotly_chart(apply_bold_style(fig_c, "⏳ 案件類別：本週 vs 上週 成長對比"), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安停車 | 2/25 最終基準鎖定版")
+st.caption("© 2026 應安停車 | 2/25 基準鎖定版")
