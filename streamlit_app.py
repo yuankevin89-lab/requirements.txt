@@ -190,4 +190,4 @@ with t2:
             fig_st = px.bar(top10, x='場站', y='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(style_4k(fig_st, "場站報修 Top 10"), use_container_width=True)
 
-st.caption("© 2026 應安客服系統")
+st.caption("© 2026 應安客服系統 | 2/25 完整基準鎖定版")
