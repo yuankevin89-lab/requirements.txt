@@ -6,7 +6,6 @@ import pandas as pd
 import pytz
 import plotly.express as px
 import plotly.graph_objects as go
-from streamlit.components.v1 import html
 
 # --- 1. 頁面基本設定與 4K 投影增強樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -19,7 +18,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1.5rem; padding-bottom: 1rem;}
     
-    /* 2/25-26 基準：全域純黑加粗 (投影專用) */
+    /* 全域純黑加粗 (投影專用) */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -91,13 +90,8 @@ if "form_id" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-refresh_js = """<script>setTimeout(function(){window.parent.location.reload();}, 3000);</script>"""
-
 # --- Tab 1: 案件登記 ---
 with tab1:
-    if not st.session_state.edit_mode:
-        html(refresh_js, height=0)
-
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
     if st.session_state.edit_mode:
@@ -140,12 +134,12 @@ with tab1:
             else: st.error("請正確選擇填單人與場站")
 
     st.markdown("---")
-    st.subheader("🔍 最近紀錄 (交班動態 - 每3秒同步)")
+    st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
             valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
-            search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", placeholder="輸入關鍵字...").strip().lower()
+            search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", "").strip().lower()
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
             if search_q: display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
@@ -158,7 +152,7 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 依指令優化欄位比例：日期 0.9, 場站 0.6, 姓名 0.4, 電話 1.2, 車號 1.0, 描述 6.6, 填單 0.8, 編輯 0.6, 標記 0.6
+                # 欄位比例：日期 0.9, 場站 0.6, 姓名 0.4, 電話 1.2, 車號 1.0, 描述 6.6, 填單 0.8, 編輯 0.6, 標記 0.6
                 col_w = [0.9, 0.6, 0.4, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
                 cols = st.columns(col_w)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
@@ -175,7 +169,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (暫停刷新，防止輸入中斷) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -231,7 +225,7 @@ with tab2:
                     st.divider()
                     cross = wk_df[wk_df[hdr[1]].isin(top10)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross.columns = ['場站', '異常類別', '件數']
-                    fig3 = px.bar(cross, x='場站', y='件_數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
+                    fig3 = px.bar(cross, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 | 2/26 終極基準鎖定版 (欄位與 4K 樣式全面優化)")
+st.caption("© 2026 應安客服系統 | 2/26 最新基礎版 (移除自動重新整理)")
