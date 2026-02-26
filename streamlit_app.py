@@ -5,10 +5,8 @@ import datetime
 import pandas as pd
 import pytz
 import plotly.express as px
-import plotly.graph_objects as go
-from streamlit.components.v1 import html
 
-# --- 1. 頁面基本設定與專業樣式 (4K 投影增強) ---
+# --- 1. 頁面基本設定與 4K 投影增強樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
 
 st.markdown("""
@@ -19,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1.5rem; padding-bottom: 1rem;}
     
-    /* 2/25 全域純黑加粗樣式 */
+    /* 2/25-26 基準：全域純黑加粗樣式 */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -45,10 +43,7 @@ st.markdown("""
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 標題區 (恢復純淨標題) ---
-st.title("應安客服線上登記系統")
-
-# --- 3. 初始資料與連線 ---
+# --- 2. 初始資料與連線 ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -70,6 +65,12 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
+CATEGORY_COLOR_MAP = {
+    "身障優惠折抵": "blue", "繳費機異常": "green", "其他": "saddlebrown",
+    "發票缺紙或卡紙": px.colors.qualitative.Safe[1], "無法找零": px.colors.qualitative.Safe[2],
+    "網路異常": px.colors.qualitative.Safe[4], "繳費問題相關": px.colors.qualitative.Safe[5]
+}
+
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -86,24 +87,11 @@ if "edit_mode" not in st.session_state:
 if "form_id" not in st.session_state:
     st.session_state.form_id = 0
 
-# --- 分頁導航 ---
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
-
-# JavaScript 刷新指令 (3秒一次)
-refresh_js = """
-<script>
-setTimeout(function(){
-    window.parent.location.reload();
-}, 3000); 
-</script>
-"""
 
 # --- Tab 1: 案件登記 ---
 with tab1:
-    # 只有在案件登記頁且非編輯時，才執行 3 秒刷新
-    if not st.session_state.edit_mode:
-        html(refresh_js, height=0)
-
+    st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
@@ -121,17 +109,16 @@ with tab1:
             caller_phone = st.text_input("電話", value=d[3])
         c3, c4 = st.columns(2)
         with c3:
-            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d[5]) if d[5] in CATEGORY_LIST else 6)
+            d_cat = d[5]; d_cat = "繳費機異常" if d_cat == "繳費機故障" else d_cat
+            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 6)
         with c4: car_num = st.text_input("車號", value=d[4])
         description = st.text_area("描述內容", value=d[6])
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
         submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
-        
         if st.session_state.edit_mode:
             if btn_c2.form_submit_button("❌ 取消編輯"):
                 st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
-                st.session_state.form_id += 1
-                st.rerun()
+                st.session_state.form_id += 1; st.rerun()
         else: btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
@@ -142,21 +129,20 @@ with tab1:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
                     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, [""]*8
                 else: sheet.append_row(row)
-                st.session_state.form_id += 1 
-                st.rerun()
+                st.session_state.form_id += 1; st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 ---
     st.markdown("---")
-    st.subheader("🔍 最近紀錄 (交班動態 - 每3秒自動同步)")
+    st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
         all_raw = sheet.get_all_values()
         if len(all_raw) > 1:
-            valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if len(r) >= 8 and any(str(c).strip() for c in r)]
+            valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
             search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", "").strip().lower()
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
-            if search_q: display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
+            if search_q: 
+                display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
             else:
                 for idx, r in valid_rows:
                     try:
@@ -166,26 +152,27 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                cols = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
+                # 欄位寬度權重：日期 0.9, 場站 0.6, 姓名 0.4, 電話 1.2, 車號 1.0, 描述 6.6, 填單人 0.8, 編輯 0.6, 標記 0.6
+                col_w = [0.9, 0.6, 0.4, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
+                cols = st.columns(col_w)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers): col.markdown(f"**{t}**")
+                
                 for r_idx, r_val in reversed(display_list):
-                    c = st.columns([1.8, 1.2, 0.8, 1.2, 1.0, 2.2, 0.8, 0.6, 0.6])
+                    c = st.columns(col_w)
                     c[0].write(f"**{r_val[0]}**"); c[1].write(r_val[1]); c[2].write(r_val[2]); c[3].write(r_val[3]); c[4].write(r_val[4])
                     clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
-                    short_d = f"{clean_d[:12]}..." if len(clean_d) > 12 else clean_d
-                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
+                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{clean_d}</div>', unsafe_allow_html=True)
                     c[6].write(r_val[7])
                     if c[7].button("📝", key=f"ed_{r_idx}"):
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
-                    st.divider()
+                    st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (在此頁面會自動暫停刷新) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計與分析")
-    # 不呼叫 html(refresh_js)，讓管理員可以安心輸入密碼
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
@@ -196,26 +183,26 @@ with tab2:
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
                 c_range = st.date_input("📅 選擇統計週期", value=[])
-                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(300)
+                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(500)
 
                 if not wk_df.empty:
                     st.download_button("📥 下載統計報表 (CSV)", wk_df.to_csv(index=False).encode('utf-8-sig'), f"應安報表_{datetime.date.today()}.csv", "text/csv")
                     st.divider()
                     config_4k = {'toImageButtonOptions': {'format': 'png', 'height': 1080, 'width': 1920, 'scale': 2}}
 
-                    def apply_bold_style(fig, title_text, is_stacked=False, is_h=False):
+                    def apply_bold_style(fig, title_text, is_stacked=False):
                         fig.update_layout(
                             font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
                             title=dict(text=f"<b>{title_text}</b>", font=dict(size=34), y=0.96, x=0.5, xanchor='center'),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=130, b=160, l=150 if is_h else 120, r=200 if (is_stacked or "對比" in title_text) else 120),
+                            margin=dict(t=130, b=160, l=120, r=200 if is_stacked else 120),
                         )
                         fig.update_xaxes(tickfont=dict(size=20, color="#000000", weight="bold"), linecolor='#000000', linewidth=3)
                         fig.update_yaxes(tickfont=dict(size=20, color="#000000", weight="bold"), linecolor='#000000', linewidth=3, gridcolor='#F0F0F0')
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # 雙週對比
+                    # 雙週對比條狀圖
                     st.subheader("⏳ 雙週案件類別對比分析")
                     t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
@@ -228,4 +215,24 @@ with tab2:
                     fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週": "#1f77b4", "上週": "#ff7f0e"})
                     st.plotly_chart(apply_bold_style(fig_c, "⏳ 案件類別：本週 vs 上週 成長對比"), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安停車 | 2/25 基準鎖定版")
+                    st.divider(); g1, g2 = st.columns(2)
+                    with g1:
+                        cat_c = wk_df[hdr[5]].value_counts().reset_index(); cat_c.columns=['類別','件數']
+                        fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
+                        st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
+                    with g2:
+                        # 場站排名由高至低
+                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
+                        st_counts.columns = ['場站', '件數']
+                        top10_df = st_counts.head(10)
+                        fig2 = px.bar(top10_df, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
+                        st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
+
+                    st.divider()
+                    top10_names = top10_df['場站'].tolist()
+                    cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
+                    cross.columns = ['場站', '異常類別', '件數']
+                    fig3 = px.bar(cross, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
+                    st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
+
+st.caption("© 2026 應安客服系統 | 2/26 最終基準鎖定版 (移除自動刷新，全功能回歸)")
