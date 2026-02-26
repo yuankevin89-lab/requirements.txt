@@ -17,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1.5rem; padding-bottom: 1rem;}
     
-    /* 2/25-26 基準：全域純黑加粗樣式 */
+    /* 2/26 基準：全域純黑加粗樣式 */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -152,7 +152,6 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 欄位寬度權重：日期 0.9, 場站 0.6, 姓名 0.4, 電話 1.2, 車號 1.0, 描述 6.6, 填單人 0.8, 編輯 0.6, 標記 0.6
                 col_w = [0.9, 0.6, 0.4, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
                 cols = st.columns(col_w)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
@@ -170,7 +169,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (補回案件明細列表) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -202,7 +201,7 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # 雙週對比條狀圖
+                    # 1. 雙週對比
                     st.subheader("⏳ 雙週案件類別對比分析")
                     t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
@@ -221,7 +220,6 @@ with tab2:
                         fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
                     with g2:
-                        # 場站排名由高至低
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']
                         top10_df = st_counts.head(10)
@@ -235,4 +233,15 @@ with tab2:
                     fig3 = px.bar(cross, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 | 2/26 最終基準鎖定版 (移除自動刷新，全功能回歸)")
+                    # --- 新增/補回：詳細案件明細清單 ---
+                    st.divider()
+                    st.subheader("📋 案件明細清單 (篩選區間)")
+                    # 顯示類別統計總表
+                    summary_table = wk_df[hdr[5]].value_counts().reset_index()
+                    summary_table.columns = ['案件類別', '件數總計']
+                    st.table(summary_table) # 靜態表顯示各類總數
+                    
+                    # 原始資料明細
+                    st.dataframe(wk_df.sort_values(by=hdr[0], ascending=False), use_container_width=True)
+
+st.caption("© 2026 應安客服系統 | 2/26 最終基準鎖定版 (修正明細列表回歸)")
