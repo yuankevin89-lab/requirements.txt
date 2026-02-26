@@ -6,6 +6,7 @@ import pandas as pd
 import pytz
 import plotly.express as px
 import plotly.graph_objects as go
+import re
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -54,7 +55,7 @@ STATION_LIST = [
     "北平東場","福州場","水源市場","重慶南","西寧市場","西園國宅","復興北","宏泰民生","新洲美福善場","福善一",
     "石牌二","中央北","紅毛城","三玉","士林場","永平社宅","涼州場","大龍峒社宅","成功場","洲子場","環山",
     "文湖場","民善場","行愛場","新明場","德明研推","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
-    "樹林水源","土城中華場","光正","合宜A2","合宜A3","昆陽一","合宜A6東","合宜A6西","裕民","中央二","中央三","陶都場",
+    "树林水源","土城中華場","光正","合宜A2","合宜A3","昆陽一","合宜A6東","合宜A6西","裕民","中央二","中央三","陶都場",
     "板橋文化1F","板橋文化B1","佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬",
     "三重永福","徐匯場","蘆洲保和","蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場",
     "龜山興富","竹東長春","竹南中山","銅鑼停一","台中黎明場","後龍","台中復興","台中復興二","文心場",
@@ -87,6 +88,18 @@ def init_connection():
 client = init_connection()
 sheet = client.open("客服作業表").sheet1 if client else None
 
+# 車號自動格式化函數
+def format_car_number(car_str):
+    if not car_str: return ""
+    # 移除現有的減號並轉大寫
+    clean_s = car_str.replace("-", "").strip().upper()
+    # 使用正則表達式尋找英文字母與數字的交界處 (支援 ABC1234 或 1234ABC)
+    match = re.match(r"([A-Z]+)([0-9]+)", clean_s)
+    if match: return f"{match.group(1)}-{match.group(2)}"
+    match_reverse = re.match(r"([0-9]+)([A-Z]+)", clean_s)
+    if match_reverse: return f"{match_reverse.group(1)}-{match_reverse.group(2)}"
+    return clean_s
+
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
 if "form_id" not in st.session_state:
@@ -117,10 +130,11 @@ with tab1:
             d_cat = d[5]
             if d_cat == "繳費機故障": d_cat = "繳費機異常"
             category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 6)
-        with c4: car_num = st.text_input("車號", value=d[4])
+        with c4: car_num = st.text_input("車號", value=d[4], help="大小寫不拘，送出後自動格式化")
         description = st.text_area("描述內容", value=d[6])
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
         submit_btn = btn_c1.form_submit_button("更新紀錄" if st.session_state.edit_mode else "確認送出")
+        
         if st.session_state.edit_mode:
             if btn_c2.form_submit_button("❌ 取消編輯"):
                 st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
@@ -131,7 +145,9 @@ with tab1:
 
         if submit_btn:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
-                row = [f_dt, station_name, caller_name, caller_phone, car_num.upper(), category, description, user_name]
+                # 執行自動格式化邏輯
+                final_car_num = format_car_number(car_num)
+                row = [f_dt, station_name, caller_name, caller_phone, final_car_num, category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
                     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, [""]*8
@@ -140,7 +156,7 @@ with tab1:
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (安插類別欄位版) ---
+    # --- 最近紀錄 (鎖定 2/26 寬度比例) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -160,7 +176,7 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 重新分配權重，安插類別(1.5)，其餘按比例縮放
+                # 嚴格遵循 2/26 版本權重分配
                 col_widths = [0.9, 0.6, 0.9, 1.2, 1.0, 1.5, 5.1, 0.8, 0.6, 0.6]
                 cols = st.columns(col_widths)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "類別", "描述摘要", "填單人", "編輯", "標記"]
@@ -173,8 +189,7 @@ with tab1:
                     c[2].write(r_val[2])
                     c[3].write(r_val[3])
                     c[4].write(r_val[4])
-                    # 新增：類別欄位顯示 (r_val[5])
-                    c[5].write(r_val[5]) 
+                    c[5].write(r_val[5]) # 類別
                     clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
                     short_d = f"{clean_d[:35]}..." if len(clean_d) > 35 else clean_d
                     c[6].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
@@ -185,7 +200,7 @@ with tab1:
                     c[9].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (嚴格圖表順序鎖定版) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -221,6 +236,7 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
+                    # 1. ⏳ 雙週案件類別對比分析
                     st.subheader("⏳ 雙週案件類別對比分析")
                     t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
@@ -236,10 +252,12 @@ with tab2:
                     st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
+                        # 2. 📂 當前區間案件分佈
                         cat_c = wk_df[hdr[5]].value_counts().reset_index(); cat_c.columns=['類別','件數']
                         fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
                     with g2:
+                        # 3. 🏢 場站排名 (Top 10)
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']
                         top10_df = st_counts.head(10)
@@ -247,6 +265,7 @@ with tab2:
                         st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
 
                     st.divider()
+                    # 4. 🔍 場站 vs. 異常類別分析
                     top10_names = top10_df['場站'].tolist()
                     cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross.columns = ['場站', '異常類別', '件數']
@@ -254,7 +273,8 @@ with tab2:
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
                     st.divider()
+                    # 5. 📈 類別精確統計
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計 (橫向對比)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/26 基礎版 (新增紀錄列表類別欄位)")
+st.caption("© 2026 應安客服系統 - 2/26 終極最新基礎版 (車號自動標準化優化)")
