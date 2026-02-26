@@ -17,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1.5rem; padding-bottom: 1rem;}
     
-    /* 2/26 基準：全域純黑加粗樣式 */
+    /* 2/26 基準：全域純黑加粗樣式 (投影機清晰度強化) */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -65,12 +65,6 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
-CATEGORY_COLOR_MAP = {
-    "身障優惠折抵": "blue", "繳費機異常": "green", "其他": "saddlebrown",
-    "發票缺紙或卡紙": px.colors.qualitative.Safe[1], "無法找零": px.colors.qualitative.Safe[2],
-    "網路異常": px.colors.qualitative.Safe[4], "繳費問題相關": px.colors.qualitative.Safe[5]
-}
-
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -89,7 +83,7 @@ if "form_id" not in st.session_state:
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 ---
+# --- Tab 1: 案件登記 (不含 3 秒刷新) ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -109,8 +103,7 @@ with tab1:
             caller_phone = st.text_input("電話", value=d[3])
         c3, c4 = st.columns(2)
         with c3:
-            d_cat = d[5]; d_cat = "繳費機異常" if d_cat == "繳費機故障" else d_cat
-            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 6)
+            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d[5]) if d[5] in CATEGORY_LIST else 6)
         with c4: car_num = st.text_input("車號", value=d[4])
         description = st.text_area("描述內容", value=d[6])
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
@@ -169,7 +162,7 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (補回案件明細列表) ---
+# --- Tab 2: 數據統計 (依照截圖恢復圖表) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -189,59 +182,41 @@ with tab2:
                     st.divider()
                     config_4k = {'toImageButtonOptions': {'format': 'png', 'height': 1080, 'width': 1920, 'scale': 2}}
 
-                    def apply_bold_style(fig, title_text, is_stacked=False):
-                        fig.update_layout(
-                            font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
-                            title=dict(text=f"<b>{title_text}</b>", font=dict(size=34), y=0.96, x=0.5, xanchor='center'),
-                            paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=130, b=160, l=120, r=200 if is_stacked else 120),
-                        )
-                        fig.update_xaxes(tickfont=dict(size=20, color="#000000", weight="bold"), linecolor='#000000', linewidth=3)
-                        fig.update_yaxes(tickfont=dict(size=20, color="#000000", weight="bold"), linecolor='#000000', linewidth=3, gridcolor='#F0F0F0')
-                        fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
-                        return fig
+                    # --- 核心：依照截圖恢復各類別橫向條狀圖 ---
+                    st.subheader("各類別件數明細")
+                    cat_c = wk_df[hdr[5]].value_counts().reset_index()
+                    cat_c.columns = ['類別', '件數']
+                    cat_c = cat_c.sort_values(by='件數', ascending=True) # 橫向圖由大到小排在上方，需 ascending=True
+                    
+                    # 建立橫向條狀圖 (依據截圖風格)
+                    fig_h = px.bar(cat_c, x='件數', y='類別', orientation='h', text='件數',
+                                   color='件數', color_continuous_scale='Blues')
+                    
+                    fig_h.update_layout(
+                        font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
+                        title=dict(text=f"<b>各類別件數明細 ({c_range[0]} ~ {c_range[1]})</b>" if len(c_range)==2 else "<b>各類別件數明細 (最近紀錄)</b>", font=dict(size=30)),
+                        paper_bgcolor='white', plot_bgcolor='white',
+                        margin=dict(t=80, b=50, l=150, r=50),
+                        coloraxis_showscale=False
+                    )
+                    fig_h.update_xaxes(showgrid=True, gridcolor='#F0F0F0', tickfont=dict(size=18))
+                    fig_h.update_yaxes(tickfont=dict(size=18))
+                    fig_h.update_traces(textposition='outside')
+                    
+                    st.plotly_chart(fig_h, use_container_width=True, config=config_4k)
 
-                    # 1. 雙週對比
-                    st.subheader("⏳ 雙週案件類別對比分析")
-                    t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
-                    td = datetime.date.today()
-                    tw_s, lw_s, lw_e = td-datetime.timedelta(days=6), td-datetime.timedelta(days=13), td-datetime.timedelta(days=7)
-                    def get_c(s, e, l):
-                        m = (t_data['D'] >= s) & (t_data['D'] <= e)
-                        r = t_data.loc[m][hdr[5]].value_counts().reindex(CATEGORY_LIST, fill_value=0).reset_index(name='件數')
-                        r.columns = ['類別', '件數']; r['週期'] = l; return r
-                    df_c = pd.concat([get_c(lw_s, lw_e, "上週"), get_c(tw_s, td, "本週")])
-                    fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週": "#1f77b4", "上週": "#ff7f0e"})
-                    st.plotly_chart(apply_bold_style(fig_c, "⏳ 案件類別：本週 vs 上週 成長對比"), use_container_width=True, config=config_4k)
-
-                    st.divider(); g1, g2 = st.columns(2)
-                    with g1:
-                        cat_c = wk_df[hdr[5]].value_counts().reset_index(); cat_c.columns=['類別','件數']
-                        fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
-                        st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
-                    with g2:
-                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
-                        st_counts.columns = ['場站', '件數']
-                        top10_df = st_counts.head(10)
-                        fig2 = px.bar(top10_df, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
-                        st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
-
+                    # --- 其他原有圖表 (場站排名等) ---
                     st.divider()
-                    top10_names = top10_df['場站'].tolist()
-                    cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
-                    cross.columns = ['場站', '異常類別', '件數']
-                    fig3 = px.bar(cross, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
-                    st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
+                    st_counts = wk_df[hdr[1]].value_counts().reset_index()
+                    st_counts.columns = ['場站', '件數']
+                    top10_df = st_counts.head(10)
+                    fig_st = px.bar(top10_df, x='場站', y='件數', text='件數', color='件數', color_continuous_scale='GnBu')
+                    fig_st.update_layout(font=dict(size=18, color="#000000"), title="<b>🏢 場站排名 (Top 10)</b>", coloraxis_showscale=False)
+                    st.plotly_chart(fig_st, use_container_width=True, config=config_4k)
 
-                    # --- 新增/補回：詳細案件明細清單 ---
+                    # 案件明細列表
                     st.divider()
                     st.subheader("📋 案件明細清單 (篩選區間)")
-                    # 顯示類別統計總表
-                    summary_table = wk_df[hdr[5]].value_counts().reset_index()
-                    summary_table.columns = ['案件類別', '件數總計']
-                    st.table(summary_table) # 靜態表顯示各類總數
-                    
-                    # 原始資料明細
                     st.dataframe(wk_df.sort_values(by=hdr[0], ascending=False), use_container_width=True)
 
-st.caption("© 2026 應安客服系統 | 2/26 最終基準鎖定版 (修正明細列表回歸)")
+st.caption("© 2026 應安客服系統 | 2/26 橫向圖表修復版 (基準：2/25)")
