@@ -140,7 +140,7 @@ with tab1:
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (欄位寬度優化版) ---
+    # --- 最近紀錄 (安插類別欄位版) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -157,13 +157,13 @@ with tab1:
                         dt = pd.to_datetime(r[0]).replace(tzinfo=None)
                         if dt >= eight_hrs_ago: display_list.append((idx, r))
                     except: continue
-                if not display_list: display_list = valid_rows[-3:] # 保底顯示最後三筆
+                if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 權重分配：日期(0.9), 場站(0.6), 姓名回增(0.9), 電話(1.2), 車號(1.0), 描述(6.6), 填單人(0.8), 編輯(0.6), 標記(0.6)
-                col_widths = [0.9, 0.6, 0.9, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
+                # 重新分配權重，安插類別(1.5)，其餘按比例縮放
+                col_widths = [0.9, 0.6, 0.9, 1.2, 1.0, 1.5, 5.1, 0.8, 0.6, 0.6]
                 cols = st.columns(col_widths)
-                headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
+                headers = ["日期/時間", "場站", "姓名", "電話", "車號", "類別", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers): col.markdown(f"**{t}**")
                 
                 for r_idx, r_val in reversed(display_list):
@@ -173,14 +173,16 @@ with tab1:
                     c[2].write(r_val[2])
                     c[3].write(r_val[3])
                     c[4].write(r_val[4])
+                    # 新增：類別欄位顯示 (r_val[5])
+                    c[5].write(r_val[5]) 
                     clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
-                    short_d = f"{clean_d[:40]}..." if len(clean_d) > 40 else clean_d
-                    c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
-                    c[6].write(r_val[7])
-                    if c[7].button("📝", key=f"ed_{r_idx}"):
+                    short_d = f"{clean_d[:35]}..." if len(clean_d) > 35 else clean_d
+                    c[6].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
+                    c[7].write(r_val[7])
+                    if c[8].button("📝", key=f"ed_{r_idx}"):
                         st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
                         st.rerun()
-                    c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
+                    c[9].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
 # --- Tab 2: 數據統計 ---
@@ -255,4 +257,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計 (橫向對比)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/26 終極最新基礎版 (姓名欄位優化)")
+st.caption("© 2026 應安客服系統 - 2/26 基礎版 (新增紀錄列表類別欄位)")
