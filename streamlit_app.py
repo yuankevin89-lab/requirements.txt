@@ -5,7 +5,6 @@ import datetime
 import pandas as pd
 import pytz
 import plotly.express as px
-import plotly.graph_objects as go
 
 # --- 1. 頁面基本設定與 4K 投影增強樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -18,7 +17,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 1.5rem; padding-bottom: 1rem;}
     
-    /* 全域純黑加粗 (投影專用) */
+    /* 2/25 傳承：全域純黑加粗 (確保投影清晰) */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -44,7 +43,7 @@ st.markdown("""
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 2. 初始資料與連線 ---
+# --- 2. 初始資料與連線 (2/25 基準名單) ---
 STATION_LIST = [
     "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
     "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
@@ -142,7 +141,8 @@ with tab1:
             search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", "").strip().lower()
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
-            if search_q: display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
+            if search_q: 
+                display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
             else:
                 for idx, r in valid_rows:
                     try:
@@ -152,11 +152,12 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 欄位比例：日期 0.9, 場站 0.6, 姓名 0.4, 電話 1.2, 車號 1.0, 描述 6.6, 填單 0.8, 編輯 0.6, 標記 0.6
+                # 今日欄位比例修正：日期 0.9, 場站 0.6, 姓名 0.4, 電話 1.2, 車號 1.0, 描述 6.6, 填單人 0.8, 編輯 0.6, 標記 0.6
                 col_w = [0.9, 0.6, 0.4, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
                 cols = st.columns(col_w)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers): col.markdown(f"**{t}**")
+                
                 for r_idx, r_val in reversed(display_list):
                     c = st.columns(col_w)
                     c[0].write(f"**{r_val[0]}**"); c[1].write(r_val[1]); c[2].write(r_val[2]); c[3].write(r_val[3]); c[4].write(r_val[4])
@@ -169,30 +170,32 @@ with tab1:
                     c[8].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 ---
+# --- Tab 2: 數據統計 (確保全柱狀圖與 Top 10 排序) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
             raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
             if len(raw_stat) > 1:
-                hdr = raw_stat[0]; df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
+                hdr = raw_stat[0]
+                df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
+                
                 c_range = st.date_input("📅 選擇統計週期", value=[])
-                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(300)
+                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(500)
 
                 if not wk_df.empty:
                     st.download_button("📥 下載統計報表 (CSV)", wk_df.to_csv(index=False).encode('utf-8-sig'), f"應安報表_{datetime.date.today()}.csv", "text/csv")
                     st.divider()
                     config_4k = {'toImageButtonOptions': {'format': 'png', 'height': 1080, 'width': 1920, 'scale': 2}}
 
-                    def apply_bold_style(fig, title_text, is_stacked=False, is_h=False):
+                    def apply_bold_style(fig, title_text, is_stacked=False):
                         fig.update_layout(
                             font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
                             title=dict(text=f"<b>{title_text}</b>", font=dict(size=34), y=0.96, x=0.5, xanchor='center'),
                             paper_bgcolor='white', plot_bgcolor='white',
-                            margin=dict(t=130, b=160, l=150 if is_h else 120, r=200 if is_stacked else 120),
+                            margin=dict(t=130, b=160, l=120, r=200 if is_stacked else 120),
                         )
                         fig.update_xaxes(tickfont=dict(size=20, color="#000000", weight="bold"), linecolor='#000000', linewidth=3)
                         fig.update_yaxes(tickfont=dict(size=20, color="#000000", weight="bold"), linecolor='#000000', linewidth=3, gridcolor='#F0F0F0')
@@ -217,15 +220,17 @@ with tab2:
                         fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
                     with g2:
-                        top10 = wk_df[hdr[1]].value_counts().head(10).index.tolist()
-                        st_c = wk_df[wk_df[hdr[1]].isin(top10)][hdr[1]].value_counts().reset_index(); st_c.columns=['場站','件數']
-                        fig2 = px.bar(st_c, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
+                        st_counts = wk_df[hdr[1]].value_counts().reset_index()
+                        st_counts.columns = ['場站', '件數']
+                        top10_df = st_counts.head(10)
+                        fig2 = px.bar(top10_df, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    cross = wk_df[wk_df[hdr[1]].isin(top10)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
+                    top10_names = top10_df['場站'].tolist()
+                    cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross.columns = ['場站', '異常類別', '件數']
                     fig3 = px.bar(cross, x='場站', y='件數', color='異常類別', text='件數', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 | 2/26 最新基礎版 (移除自動重新整理)")
+st.caption("© 2026 應安客服系統 | 2/26 最終基準鎖定版 (繼承 2/25 核心功能、移除自動刷新)")
