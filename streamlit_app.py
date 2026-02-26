@@ -18,7 +18,7 @@ st.markdown("""
     .stAppDeployButton {display: none;}
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
-    /* 2/26 基準：全域純黑加粗樣式 (投影機清晰度強化) */
+    /* 全域純黑加粗樣式 (投影機清晰度強化) */
     * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
@@ -140,7 +140,7 @@ with tab1:
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (欄位寬度經比例調整) ---
+    # --- 最近紀錄 (欄位寬度優化版) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -160,21 +160,20 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:] # 保底顯示最後三筆
 
             if display_list:
-                # 調整後的寬度權重：日期(0.9), 場站(0.6), 姓名(0.4), 電話(1.2), 車號(1.0), 描述增加三倍(6.6), 填單人(0.8), 編輯(0.6), 標記(0.6)
-                col_widths = [0.9, 0.6, 0.4, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
+                # 權重分配：日期(0.9), 場站(0.6), 姓名回增(0.9), 電話(1.2), 車號(1.0), 描述(6.6), 填單人(0.8), 編輯(0.6), 標記(0.6)
+                col_widths = [0.9, 0.6, 0.9, 1.2, 1.0, 6.6, 0.8, 0.6, 0.6]
                 cols = st.columns(col_widths)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "描述摘要", "填單人", "編輯", "標記"]
                 for col, t in zip(cols, headers): col.markdown(f"**{t}**")
                 
                 for r_idx, r_val in reversed(display_list):
                     c = st.columns(col_widths)
-                    c[0].write(f"**{r_val[0]}**") # 標題加粗
+                    c[0].write(f"**{r_val[0]}**") 
                     c[1].write(r_val[1])
                     c[2].write(r_val[2])
                     c[3].write(r_val[3])
                     c[4].write(r_val[4])
                     clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
-                    # 描述摘要：寬度增加三倍後，文字截斷長度也適度放寬
                     short_d = f"{clean_d[:40]}..." if len(clean_d) > 40 else clean_d
                     c[5].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
                     c[6].write(r_val[7])
@@ -220,7 +219,6 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # A. 雙週類別對比
                     st.subheader("⏳ 雙週案件類別對比分析")
                     t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
@@ -254,8 +252,7 @@ with tab2:
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # E. 各類別精確統計 (橫向柱狀圖)
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計 (橫向對比)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/26 欄位寬度優化版")
+st.caption("© 2026 應安客服系統 - 2/26 終極最新基礎版 (姓名欄位優化)")
