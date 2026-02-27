@@ -55,7 +55,7 @@ STATION_LIST = [
     "北平東場","福州場","水源市場","重慶南","西寧市場","西園國宅","復興北","宏泰民生","新洲美福善場","福善一",
     "石牌二","中央北","紅毛城","三玉","士林場","永平社宅","涼州場","大龍峒社宅","成功場","洲子場","環山",
     "文湖場","民善場","行愛場","新明場","德明研推","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
-    "树林水源","土城中華場","光正","合宜A2","合宜A3","昆陽一","合宜A6東","合宜A6西","裕民","中央二","中央三","陶都場",
+    "樹林水源","土城中華場","光正","合宜A2","合宜A3","昆陽一","合宜A6東","合宜A6西","裕民","中央二","中央三","陶都場",
     "板橋文化1F","板橋文化B1","佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬",
     "三重永福","徐匯場","蘆洲保和","蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場",
     "龜山興富","竹東長春","竹南中山","銅鑼停一","台中黎明場","後龍","台中復興","台中復興二","文心場",
@@ -91,17 +91,20 @@ sheet = client.open("客服作業表").sheet1 if client else None
 # 車號自動格式化函數
 def format_car_number(car_str):
     if not car_str: return ""
-    # 移除現有的減號並轉大寫
     clean_s = car_str.replace("-", "").strip().upper()
-    # 使用正則表達式尋找英文字母與數字的交界處 (支援 ABC1234 或 1234ABC)
     match = re.match(r"([A-Z]+)([0-9]+)", clean_s)
     if match: return f"{match.group(1)}-{match.group(2)}"
     match_reverse = re.match(r"([0-9]+)([A-Z]+)", clean_s)
     if match_reverse: return f"{match_reverse.group(1)}-{match_reverse.group(2)}"
     return clean_s
 
+# --- 修正後的 Session State 初始化 ---
 if "edit_mode" not in st.session_state:
-    st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""]*8
+    st.session_state.edit_mode = False
+if "edit_row_idx" not in st.session_state:
+    st.session_state.edit_row_idx = None
+if "edit_data" not in st.session_state:
+    st.session_state.edit_data = [""] * 8
 if "form_id" not in st.session_state:
     st.session_state.form_id = 0
 
@@ -137,7 +140,9 @@ with tab1:
         
         if st.session_state.edit_mode:
             if btn_c2.form_submit_button("❌ 取消編輯"):
-                st.session_state.edit_mode, st.session_state.edit_data = False, [""]*8
+                st.session_state.edit_mode = False
+                st.session_state.edit_row_idx = None
+                st.session_state.edit_data = [""] * 8
                 st.session_state.form_id += 1
                 st.rerun()
         else: btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
@@ -145,18 +150,19 @@ with tab1:
 
         if submit_btn:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
-                # 執行自動格式化邏輯
                 final_car_num = format_car_number(car_num)
                 row = [f_dt, station_name, caller_name, caller_phone, final_car_num, category, description, user_name]
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
-                    st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, [""]*8
+                    st.session_state.edit_mode = False
+                    st.session_state.edit_row_idx = None
+                    st.session_state.edit_data = [""] * 8
                 else: sheet.append_row(row)
                 st.session_state.form_id += 1 
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (鎖定 2/26 寬度比例) ---
+    # --- 最近紀錄 (鎖定 2/26 權重比例) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -176,7 +182,6 @@ with tab1:
                 if not display_list: display_list = valid_rows[-3:]
 
             if display_list:
-                # 嚴格遵循 2/26 版本權重分配
                 col_widths = [0.9, 0.6, 0.9, 1.2, 1.0, 1.5, 5.1, 0.8, 0.6, 0.6]
                 cols = st.columns(col_widths)
                 headers = ["日期/時間", "場站", "姓名", "電話", "車號", "類別", "描述摘要", "填單人", "編輯", "標記"]
@@ -189,13 +194,15 @@ with tab1:
                     c[2].write(r_val[2])
                     c[3].write(r_val[3])
                     c[4].write(r_val[4])
-                    c[5].write(r_val[5]) # 類別
+                    c[5].write(r_val[5])
                     clean_d = r_val[6].replace('\n', ' ').replace('"', '&quot;')
                     short_d = f"{clean_d[:35]}..." if len(clean_d) > 35 else clean_d
                     c[6].markdown(f'<div class="hover-text" title="{clean_d}">{short_d}</div>', unsafe_allow_html=True)
                     c[7].write(r_val[7])
                     if c[8].button("📝", key=f"ed_{r_idx}"):
-                        st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = True, r_idx, r_val
+                        st.session_state.edit_mode = True
+                        st.session_state.edit_row_idx = r_idx
+                        st.session_state.edit_data = r_val
                         st.rerun()
                     c[9].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
@@ -277,4 +284,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計 (橫向對比)", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2/26 終極最新基礎版 (車號自動標準化優化)")
+st.caption("© 2026 應安客服系統 - 2/26 終極修正版 (修復賦值錯誤並保留完整功能)")
