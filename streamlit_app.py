@@ -7,6 +7,7 @@ import pytz
 import plotly.express as px
 import plotly.graph_objects as go
 import re
+import io  # 用於處理 Excel 檔案流
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -152,7 +153,7 @@ with tab1:
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 (鎖定 2/26 寬度比例) ---
+    # --- 最近紀錄 ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
@@ -191,7 +192,7 @@ with tab1:
                     c[9].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (嚴格圖表順序鎖定 + 每日趨勢圖) ---
+# --- Tab 2: 數據統計 (已修改下載 Excel 邏輯) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -203,13 +204,23 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                # ⭐ 保留基準版功能：日期區間選擇器與過濾邏輯
                 c_range = st.date_input("📅 選擇統計週期", value=[])
                 wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(300)
 
                 if not wk_df.empty:
-                    csv = wk_df.to_csv(index=False).encode('utf-8-sig')
-                    st.download_button("📥 下載 CSV", csv, f"應安報表_{datetime.date.today()}.csv")
+                    # ⭐ 修改處：將 DataFrame 轉為 Excel 檔案流
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        wk_df.to_excel(writer, index=False, sheet_name='客服報表')
+                    excel_data = output.getvalue()
+                    
+                    st.download_button(
+                        label="📥 下載 Excel (.xlsx)",
+                        data=excel_data,
+                        file_name=f"應安報表_{datetime.date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                    
                     st.divider()
                     config_4k = {'toImageButtonOptions': {'format': 'png', 'height': 1080, 'width': 1920, 'scale': 2}}
 
@@ -227,13 +238,13 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # 🚀 圖表 0. 每日案件量趨勢圖 (今日新增 - 精確插入置頂)
+                    # 圖表 0. 每日案件量趨勢圖
                     df_s['Date_only'] = df_s[hdr[0]].dt.date
                     trend_data = df_s.groupby('Date_only').size().reset_index(name='件數')
                     fig_trend = px.line(trend_data, x='Date_only', y='件數', text='件數', markers=True)
                     st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖"), use_container_width=True, config=config_4k)
 
-                    # 圖表 1. 雙週對比 (與基準版完全一致)
+                    # 圖表 1. 雙週對比分析
                     t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
                     tw_s, lw_s, lw_e = td-datetime.timedelta(days=6), td-datetime.timedelta(days=13), td-datetime.timedelta(days=7)
@@ -248,19 +259,16 @@ with tab2:
                     st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
-                        # 圖表 2. 當前分佈 (與基準版完全一致)
                         cat_c = wk_df[hdr[5]].value_counts().reset_index(); cat_c.columns=['類別','件數']
                         fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
                     with g2:
-                        # 圖表 3. 場站 Top 10 (與基準版完全一致)
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']; top10_df = st_counts.head(10)
                         fig2 = px.bar(top10_df, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # 圖表 4. 場站 vs. 異常類別 (與基準版完全一致)
                     top10_names = top10_df['場站'].tolist()
                     cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross.columns = ['場站', '異常類別', '件數']
@@ -268,8 +276,7 @@ with tab2:
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # 圖表 5. 橫向精確統計 (與基準版完全一致)
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2026-03-09 功能完整集成版")
+st.caption("© 2026 應安客服系統 - 2026-03-09 Excel 下載更新版")
