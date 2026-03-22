@@ -247,7 +247,7 @@ with tab2:
                     wk_df['Date_only'] = wk_df[hdr[0]].dt.date
                     trend_data = wk_df.groupby('Date_only').size().reset_index(name='件數')
                     fig_trend = px.line(trend_data, x='Date_only', y='件數', text='件數', markers=True)
-                    st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖 (不含其他)"), use_container_width=True, config=config_4k)
+                    st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖 "), use_container_width=True, config=config_4k)
 
                     # 圖表 1. 雙週對比分析 (剔除「其他」)
                     t_data = df_filtered.copy(); t_data['D'] = t_data[hdr[0]].dt.date
