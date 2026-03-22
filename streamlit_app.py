@@ -209,7 +209,7 @@ with tab2:
                 # ⭐ 核心變動點：所有的圖表統計 wk_df 都會剔除類別為「其他」的資料
                 df_filtered = df_s[df_s[hdr[5]] != "其他"]
                 
-                c_range = st.date_input("📅 選擇統計週期 (已自動剔除「其他」類別)", value=[])
+                c_range = st.date_input("📅 選擇統計週期", value=[])
                 wk_df = df_filtered.loc[(df_filtered[hdr[0]].dt.date >= c_range[0]) & (df_filtered[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_filtered.tail(300)
 
                 if not wk_df.empty:
@@ -284,4 +284,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 - 2026-03-09 Excel 下載更新版 (剔除其他類別統計版)")
+st.caption("© 2026 應安客服系統 ")
