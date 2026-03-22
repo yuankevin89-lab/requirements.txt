@@ -66,14 +66,18 @@ STATION_LIST = [
 ]
 
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
-CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
+
+# 更新類別清單
+CATEGORY_LIST = ["發票問題無法繳費", "網路問題無法繳費", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
 # 統計分析專用的類別清單 (剔除「其他」)
 STAT_CATEGORY_LIST = [c for c in CATEGORY_LIST if c != "其他"]
 
+# 更新顏色對照表
 CATEGORY_COLOR_MAP = {
     "身障優惠折抵": "blue",
-    "繳費機異常": "green",
+    "發票問題無法繳費": "green",
+    "網路問題無法繳費": "#FF4B4B",
     "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
     "無法找零": px.colors.qualitative.Safe[2],
     "網路異常": px.colors.qualitative.Safe[4],
@@ -107,7 +111,7 @@ if "form_id" not in st.session_state: st.session_state.form_id = 0
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 (邏輯完全不變) ---
+# --- Tab 1: 案件登記 ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -128,8 +132,9 @@ with tab1:
         c3, c4 = st.columns(2)
         with c3:
             d_cat = d[5]
-            if d_cat == "繳費機故障": d_cat = "繳費機異常"
-            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 6)
+            # 兼容舊資料邏輯：如果舊資料是繳費機異常，則對應到新的第一個選項
+            if d_cat == "繳費機異常" or d_cat == "繳費機故障": d_cat = "發票問題無法繳費"
+            category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 7)
         with c4: car_num = st.text_input("車號", value=d[4], help="自動標準化格式")
         description = st.text_area("描述內容", value=d[6])
         btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
@@ -194,7 +199,7 @@ with tab1:
                     c[9].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (新增剔除「其他」邏輯) ---
+# --- Tab 2: 數據統計 ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -206,14 +211,12 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                # ⭐ 核心變動點：所有的圖表統計 wk_df 都會剔除類別為「其他」的資料
                 df_filtered = df_s[df_s[hdr[5]] != "其他"]
                 
                 c_range = st.date_input("📅 選擇統計週期", value=[])
                 wk_df = df_filtered.loc[(df_filtered[hdr[0]].dt.date >= c_range[0]) & (df_filtered[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_filtered.tail(300)
 
                 if not wk_df.empty:
-                    # 下載 Excel 邏輯保留
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         wk_df.to_excel(writer, index=False, sheet_name='客服報表')
@@ -243,13 +246,13 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # 圖表 0. 每日案件量趨勢圖 (剔除「其他」後的趨勢)
+                    # 圖表 0. 每日案件量趨勢圖
                     wk_df['Date_only'] = wk_df[hdr[0]].dt.date
                     trend_data = wk_df.groupby('Date_only').size().reset_index(name='件數')
                     fig_trend = px.line(trend_data, x='Date_only', y='件數', text='件數', markers=True)
                     st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖 "), use_container_width=True, config=config_4k)
 
-                    # 圖表 1. 雙週對比分析 (剔除「其他」)
+                    # 圖表 1. 雙週對比分析
                     t_data = df_filtered.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
                     tw_s, lw_s, lw_e = td-datetime.timedelta(days=6), td-datetime.timedelta(days=13), td-datetime.timedelta(days=7)
