@@ -68,10 +68,12 @@ STATION_LIST = [
 STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "志榮", "阿錨", "子毅", "浚"]
 CATEGORY_LIST = ["繳費機異常", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 
+# 統計分析專用的類別清單 (剔除「其他」)
+STAT_CATEGORY_LIST = [c for c in CATEGORY_LIST if c != "其他"]
+
 CATEGORY_COLOR_MAP = {
     "身障優惠折抵": "blue",
     "繳費機異常": "green",
-    "其他": "saddlebrown",
     "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
     "無法找零": px.colors.qualitative.Safe[2],
     "網路異常": px.colors.qualitative.Safe[4],
@@ -105,7 +107,7 @@ if "form_id" not in st.session_state: st.session_state.form_id = 0
 
 tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
-# --- Tab 1: 案件登記 ---
+# --- Tab 1: 案件登記 (邏輯完全不變) ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
     now_ts = datetime.datetime.now(tw_timezone)
@@ -192,7 +194,7 @@ with tab1:
                     c[9].checkbox(" ", key=f"chk_{r_idx}", label_visibility="collapsed")
                     st.markdown("<hr style='margin: 2px 0; border-top: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-# --- Tab 2: 數據統計 (已修改下載 Excel 邏輯) ---
+# --- Tab 2: 數據統計 (新增剔除「其他」邏輯) ---
 with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
@@ -204,11 +206,14 @@ with tab2:
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
                 
-                c_range = st.date_input("📅 選擇統計週期", value=[])
-                wk_df = df_s.loc[(df_s[hdr[0]].dt.date >= c_range[0]) & (df_s[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_s.tail(300)
+                # ⭐ 核心變動點：所有的圖表統計 wk_df 都會剔除類別為「其他」的資料
+                df_filtered = df_s[df_s[hdr[5]] != "其他"]
+                
+                c_range = st.date_input("📅 選擇統計週期 (已自動剔除「其他」類別)", value=[])
+                wk_df = df_filtered.loc[(df_filtered[hdr[0]].dt.date >= c_range[0]) & (df_filtered[hdr[0]].dt.date <= c_range[1])] if len(c_range) == 2 else df_filtered.tail(300)
 
                 if not wk_df.empty:
-                    # ⭐ 修改處：將 DataFrame 轉為 Excel 檔案流
+                    # 下載 Excel 邏輯保留
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         wk_df.to_excel(writer, index=False, sheet_name='客服報表')
@@ -238,19 +243,19 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # 圖表 0. 每日案件量趨勢圖
-                    df_s['Date_only'] = df_s[hdr[0]].dt.date
-                    trend_data = df_s.groupby('Date_only').size().reset_index(name='件數')
+                    # 圖表 0. 每日案件量趨勢圖 (剔除「其他」後的趨勢)
+                    wk_df['Date_only'] = wk_df[hdr[0]].dt.date
+                    trend_data = wk_df.groupby('Date_only').size().reset_index(name='件數')
                     fig_trend = px.line(trend_data, x='Date_only', y='件數', text='件數', markers=True)
-                    st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖"), use_container_width=True, config=config_4k)
+                    st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖 (不含其他)"), use_container_width=True, config=config_4k)
 
-                    # 圖表 1. 雙週對比分析
-                    t_data = df_s.copy(); t_data['D'] = t_data[hdr[0]].dt.date
+                    # 圖表 1. 雙週對比分析 (剔除「其他」)
+                    t_data = df_filtered.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
                     tw_s, lw_s, lw_e = td-datetime.timedelta(days=6), td-datetime.timedelta(days=13), td-datetime.timedelta(days=7)
                     def get_c(s, e, l):
                         m = (t_data['D'] >= s) & (t_data['D'] <= e)
-                        r = t_data.loc[m][hdr[5]].value_counts().reindex(CATEGORY_LIST, fill_value=0).reset_index(name='件數')
+                        r = t_data.loc[m][hdr[5]].value_counts().reindex(STAT_CATEGORY_LIST, fill_value=0).reset_index(name='件數')
                         r.columns = ['類別', '件數']; r['週期'] = l; return r
                     df_c = pd.concat([get_c(lw_s, lw_e, "上週 (前7日)"), get_c(tw_s, td, "本週 (最近7日)")])
                     fig_c = px.bar(df_c, x='類別', y='件數', color='週期', barmode='group', text='件數', color_discrete_map={"本週 (最近7日)": "#1f77b4", "上週 (前7日)": "#ff7f0e"})
@@ -279,4 +284,4 @@ with tab2:
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
 
-st.caption("© 2026 應安客服系統 ")
+st.caption("© 2026 應安客服系統 - 2026-03-09 Excel 下載更新版 (剔除其他類別統計版)")
