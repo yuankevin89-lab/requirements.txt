@@ -9,38 +9,28 @@ import plotly.graph_objects as go
 import re
 import io  # 用於處理 Excel 檔案流
 
-# --- 1. 頁面基本設定與專業樣式 ---
-st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
-
+# --- 1. 樣式優化 (修正圖示亂碼與字體清晰度) ---
+st.set_page_config(page_title="應安客服雲端登記系統", layout="wide")
 st.markdown("""
     <style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stAppDeployButton {display: none;}
-    .block-container {padding-top: 2rem; padding-bottom: 1rem;}
+    #MainMenu, header, footer, .stAppDeployButton {visibility: hidden;}
     
-    /* 全域純黑加粗樣式 (投影機清晰度強化) */
-    * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
-    
-    [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
-        background-color: #e8f5e9 !important;
-        border-radius: 8px;
-        padding: 10px;
-        transition: background-color 0.3s ease;
-        border: 1px solid #c8e6c9;
+    /* 核心字體設定：增加抗鋸齒，解決糊掉問題 */
+    * { 
+        color: #000000 !important; 
+        font-family: "Microsoft JhengHei", sans-serif !important; 
+        font-weight: 800 !important; 
+        -webkit-font-smoothing: antialiased;
+    }
+
+    /* 關鍵修正：排除 expander 圖示的加粗，避免出現 _arrow_right 亂碼 */
+    [data-testid="stExpander"] svg, 
+    [data-testid="stExpander"] div[role="button"] p {
+        font-weight: normal !important;
     }
     
-    .hover-text {
-        cursor: help;
-        color: #1f77b4;
-        text-decoration: underline dotted;
-        display: inline-block;
-        width: 100%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+    /* 恢復原本表格橫線與間距 */
+    .record-row { border-bottom: 1px solid #000000; padding: 10px 0; }
     </style>
     """, unsafe_allow_html=True)
 
