@@ -21,7 +21,7 @@ st.markdown("""
     .block-container {padding-top: 2rem; padding-bottom: 1rem;}
     
     /* 全域純黑加粗樣式 (投影機清晰度強化) */
-    * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; }
+    * { color: #000000 !important; font-family: "Microsoft JhengHei", "Arial Black", sans-serif !important; font-weight: 800 !important; }
     
     [data-testid="stElementContainer"]:has(input[type="checkbox"]:checked) {
         background-color: #e8f5e9 !important;
@@ -47,43 +47,6 @@ st.markdown("""
 tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- 2. 初始資料與連線 ---
-STATION_LIST = [
-    "請選擇或輸入關鍵字搜尋", "華視光復","電視台","華視二","文教五","華視五","文教一","文教二","文教六","文教三",
-    "延吉場","大安場","信義大安","樂業場","仁愛場","四維場","濟南一場","濟南二場","松智場","松勇二","六合市場",
-    "統領場","信義安和","僑信場","台北民生場","美麗華場","基湖場","北安場","龍江場","農安場","和平東路場","政大三街場","木柵路三段77巷場",
-    "民權西場","承德場","承德三","詔安場","大龍場","延平北場","及泰寧安場","雙連","中山市場","助安中山場","南昌場","博愛場","金山場",
-    "金華場","通化","杭南一","復興南","仁愛逸仙","興岩社福大樓","木柵社宅","泉州場","汀州場",
-    "北平東場","福州場","水源市場","重慶南","西寧市場","西園國宅","復興北","宏泰民生","新洲美福善場","福善一",
-    "石牌二","中央北","紅毛城","三玉","士林場","永平社宅","涼州場","大龍峒社宅","成功場","洲子場","環山",
-    "文湖場","民善場","行愛場","新明場","德明研推","東湖場","舊宗社宅","行善五","秀山機車","景平","環狀A機車",
-    "樹林水源","土城中華場","光正","合宜A2","合宜A3","昆陽一","合宜A6東","合宜A6西","裕民","中央二","中央三","陶都場",
-    "板橋文化1F","板橋文化B1","佳音-同安","佳音-竹林","青潭國小","林口文化","秀峰","興南場","中和莊敬",
-    "三重永福","徐匯場","蘆洲保和","蘆洲三民","榮華場","富貴場","鄉長二","汐止忠孝","新台五路","蘆竹場",
-    "龜山興富","竹東長春","竹南中山","銅鑼停一","台中黎明場","後龍","台中復興","台中復興二","文心場",
-    "台中大和屋","一銀北港","西螺","虎尾","民德","衛民","衛民二場","台南北門","台南公園","台南永福","台南國華",
-    "台南民權","善化","仁德","台南中華場","致穩","台南康樂場","金財神","蘭井","佳音西園",
-    "中華信義","敦南場","中華北門場", "其他(未登入場站)"
-]
-
-STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "慶瑜","志榮", "阿錨", "子毅", "浚"]
-
-# 更新類別清單
-CATEGORY_LIST = ["發票問題無法繳費", "網路問題無法繳費", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
-
-# 統計分析專用的類別清單 (剔除「其他」)
-STAT_CATEGORY_LIST = [c for c in CATEGORY_LIST if c != "其他"]
-
-# 更新顏色對照表
-CATEGORY_COLOR_MAP = {
-    "身障優惠折抵": "blue",
-    "發票問題無法繳費": "green",
-    "網路問題無法繳費": "#FF4B4B",
-    "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
-    "無法找零": px.colors.qualitative.Safe[2],
-    "網路異常": px.colors.qualitative.Safe[4],
-    "繳費問題相關": px.colors.qualitative.Safe[5]
-}
-
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -93,7 +56,42 @@ def init_connection():
     except: return None
 
 client = init_connection()
-sheet = client.open("客服作業表").sheet1 if client else None
+
+# --- 3. 核心邏輯：場站清單與新增場站功能 ---
+if client:
+    main_spreadsheet = client.open("客服作業表")
+    sheet = main_spreadsheet.sheet1
+    try:
+        station_ws = main_spreadsheet.worksheet("Station_Settings")
+    except:
+        # 如果不存在此分頁則建立，確保系統不崩潰
+        station_ws = main_spreadsheet.add_worksheet(title="Station_Settings", rows="100", cols="5")
+        station_ws.append_row(["場站名稱"])
+
+    # 從雲端讀取場站清單
+    cloud_stations = station_ws.col_values(1)[1:] # 跳過標題
+    if not cloud_stations:
+        # 如果雲端是空的，使用預設初始清單 (2/26 版本硬編碼清單作為備援)
+        STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "其他(未登入場站)"]
+    else:
+        STATION_LIST = ["請選擇或輸入關鍵字搜尋"] + sorted(list(set(cloud_stations))) + ["其他(未登入場站)"]
+else:
+    sheet = None
+    STATION_LIST = ["連線失敗"]
+
+STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩佳", "慶瑜","志榮", "阿錨", "子毅", "敘峻"]
+CATEGORY_LIST = ["發票問題無法繳費", "網路問題無法繳費", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
+STAT_CATEGORY_LIST = [c for c in CATEGORY_LIST if c != "其他"]
+
+CATEGORY_COLOR_MAP = {
+    "身障優惠折抵": "blue",
+    "發票問題無法繳費": "green",
+    "網路問題無法繳費": "#FF4B4B",
+    "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
+    "無法找零": px.colors.qualitative.Safe[2],
+    "網路異常": px.colors.qualitative.Safe[4],
+    "繳費問題相關": px.colors.qualitative.Safe[5]
+}
 
 def format_car_number(car_str):
     if not car_str: return ""
@@ -114,6 +112,20 @@ tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 # --- Tab 1: 案件登記 ---
 with tab1:
     st.title("📝 應安客服線上登記系統")
+    
+    # --- 新增場站邏輯更改 (獨立區塊) ---
+    with st.container():
+        st.markdown("### 🏢 場站管理")
+        c_new1, c_new2 = st.columns([4, 1])
+        new_st_name = c_new1.text_input("新增場站名稱 (若選單找不到請在此輸入)", placeholder="輸入名稱後點擊右側新增...")
+        if c_new2.button("➕ 確認新增", use_container_width=True):
+            if new_st_name.strip():
+                station_ws.append_row([new_st_name.strip()])
+                st.success(f"已成功新增場站：{new_st_name}")
+                st.rerun()
+    
+    st.divider()
+    
     now_ts = datetime.datetime.now(tw_timezone)
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
@@ -132,7 +144,6 @@ with tab1:
         c3, c4 = st.columns(2)
         with c3:
             d_cat = d[5]
-            # 兼容舊資料邏輯：如果舊資料是繳費機異常，則對應到新的第一個選項
             if d_cat == "繳費機異常" or d_cat == "繳費機故障": d_cat = "發票問題無法繳費"
             category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 7)
         with c4: car_num = st.text_input("車號", value=d[4], help="自動標準化格式")
@@ -246,13 +257,7 @@ with tab2:
                         fig.update_traces(textfont=dict(size=20, color="#000000", weight="bold"))
                         return fig
 
-                    # 圖表 0. 每日案件量趨勢圖
-                    wk_df['Date_only'] = wk_df[hdr[0]].dt.date
-                    trend_data = wk_df.groupby('Date_only').size().reset_index(name='件數')
-                    fig_trend = px.line(trend_data, x='Date_only', y='件數', text='件數', markers=True)
-                    st.plotly_chart(apply_bold_style(fig_trend, "📈 每日案件量趨勢圖 "), use_container_width=True, config=config_4k)
-
-                    # 圖表 1. 雙週對比分析
+                    # 1. ⏳ 雙週案件類別對比分析
                     t_data = df_filtered.copy(); t_data['D'] = t_data[hdr[0]].dt.date
                     td = datetime.date.today()
                     tw_s, lw_s, lw_e = td-datetime.timedelta(days=6), td-datetime.timedelta(days=13), td-datetime.timedelta(days=7)
@@ -267,16 +272,19 @@ with tab2:
                     st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
+                        # 2. 📂 當前區間案件分佈
                         cat_c = wk_df[hdr[5]].value_counts().reset_index(); cat_c.columns=['類別','件數']
                         fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
                     with g2:
+                        # 3. 🏢 場站排名 (Top 10)
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']; top10_df = st_counts.head(10)
                         fig2 = px.bar(top10_df, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
 
                     st.divider()
+                    # 4. 🔍 場站 vs. 異常類別分析
                     top10_names = top10_df['場站'].tolist()
                     cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross.columns = ['場站', '異常類別', '件數']
@@ -284,6 +292,7 @@ with tab2:
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
                     st.divider()
+                    # 5. 📈 類別精確統計
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
 
