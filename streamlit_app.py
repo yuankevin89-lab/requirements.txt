@@ -7,7 +7,7 @@ import pytz
 import plotly.express as px
 import plotly.graph_objects as go
 import re
-import io  # 用於處理 Excel 檔案流
+import io
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -64,14 +64,12 @@ if client:
     try:
         station_ws = main_spreadsheet.worksheet("Station_Settings")
     except:
-        # 如果不存在此分頁則建立，確保系統不崩潰
         station_ws = main_spreadsheet.add_worksheet(title="Station_Settings", rows="100", cols="5")
         station_ws.append_row(["場站名稱"])
 
     # 從雲端讀取場站清單
-    cloud_stations = station_ws.col_values(1)[1:] # 跳過標題
+    cloud_stations = station_ws.col_values(1)[1:] 
     if not cloud_stations:
-        # 如果雲端是空的，使用預設初始清單 (2/26 版本硬編碼清單作為備援)
         STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "其他(未登入場站)"]
     else:
         STATION_LIST = ["請選擇或輸入關鍵字搜尋"] + sorted(list(set(cloud_stations))) + ["其他(未登入場站)"]
@@ -113,7 +111,6 @@ tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 with tab1:
     st.title("📝 應安客服線上登記系統")
     
-    # --- 新增場站邏輯更改 (獨立區塊) ---
     with st.container():
         st.markdown("### 🏢 場站管理")
         c_new1, c_new2 = st.columns([4, 1])
@@ -243,7 +240,7 @@ with tab2:
                     st.divider()
                     config_4k = {'toImageButtonOptions': {'format': 'png', 'height': 1080, 'width': 1920, 'scale': 2}}
 
-                    def apply_bold_style(fig, title_text, is_stacked=False, is_h=False):
+                    def apply_bold_style(fig, title_text, is_stacked=False, is_h=False, is_line=False):
                         leg = dict(font=dict(size=18, color="#000000"), orientation="v", yanchor="top", y=1, xanchor="left", x=1.02) if (is_stacked or "對比" in title_text) else None
                         fig.update_layout(
                             font=dict(family="Microsoft JhengHei, Arial Black", size=20, color="#000000"),
@@ -295,5 +292,13 @@ with tab2:
                     # 5. 📈 類別精確統計
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
+
+                    st.divider()
+                    # 6. 📈 每日案件量趨勢圖 (補回圖表)
+                    daily_counts = wk_df.groupby(wk_df[hdr[0]].dt.date).size().reset_index(name='件數')
+                    daily_counts.columns = ['日期', '件數']
+                    fig5 = px.line(daily_counts, x='日期', y='件數', text='件數', markers=True)
+                    fig5.update_traces(textposition="top center", line=dict(width=4), marker=dict(size=12))
+                    st.plotly_chart(apply_bold_style(fig5, "📈 每日案件量趨勢圖"), use_container_width=True, config=config_4k)
 
 st.caption("© 2026 應安客服系統 ")
