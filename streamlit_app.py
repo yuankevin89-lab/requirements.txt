@@ -82,7 +82,7 @@ def get_taipei_weather():
             80: "陣雨", 81: "強陣雨", 82: "極端陣雨",
             95: "雷陣雨", 96: "雷雨伴隨冰雹", 99: "雷雨伴隨重度冰雹"
         }
-        desc = weather_map.get(code, f"代碼:{code}") # 若無對應則顯示代碼以便除錯
+        desc = weather_map.get(code, f"代碼:{code}") 
         return f"🌡️ 台北：{temp}°C | {desc}"
     except Exception as e:
         return "🌡️ 台北：連線中..."
@@ -121,6 +121,7 @@ STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩
 CATEGORY_LIST = ["發票問題無法繳費", "網路問題無法繳費", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 STAT_CATEGORY_LIST = [c for c in CATEGORY_LIST if c != "其他"]
 
+# [更新] 繳費相關問題顏色改為蘋果綠 (#8DB600)
 CATEGORY_COLOR_MAP = {
     "身障優惠折抵": "blue",
     "發票問題無法繳費": "green",
@@ -128,7 +129,7 @@ CATEGORY_COLOR_MAP = {
     "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
     "無法找零": px.colors.qualitative.Safe[2],
     "網路異常": px.colors.qualitative.Safe[4],
-    "繳費問題相關": px.colors.qualitative.Safe[5]
+    "繳費問題相關": "#8DB600"
 }
 
 def format_car_number(car_str):
