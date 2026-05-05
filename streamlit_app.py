@@ -8,6 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import re
 import io
+import requests  # 新增：用於獲取天氣資料
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -41,10 +42,39 @@ st.markdown("""
         overflow: hidden;
         text-overflow: ellipsis;
     }
+
+    /* 跑馬燈專用容器樣式 */
+    .weather-marquee-box {
+        background: #FFFFFF; 
+        border: 3px solid #000000; 
+        border-radius: 5px; 
+        padding: 5px; 
+        margin-top: 10px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 tw_timezone = pytz.timezone('Asia/Taipei')
+
+# --- 新增：獲取台北即時天氣邏輯 ---
+def get_taipei_weather():
+    try:
+        # Open-Meteo API: 台北經緯度 25.03, 121.56
+        url = "https://api.open-meteo.com/v1/forecast?latitude=25.03&longitude=121.56&current_weather=true"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        temp = round(data['current_weather']['temperature'])
+        code = data['current_weather']['weathercode']
+        # 天氣代碼轉換
+        weather_map = {0: "晴朗", 1: "晴間多雲", 2: "多雲", 3: "陰天", 45: "霧", 48: "霧", 51: "毛毛雨", 61: "小雨", 63: "中雨", 65: "大雨"}
+        desc = weather_map.get(code, "觀測中")
+        return f"🌡️ 台北：{temp}°C | {desc}"
+    except:
+        return "🌡️ 台北：取得天氣失敗"
 
 # --- 2. 初始資料與連線 ---
 def init_connection():
@@ -109,7 +139,19 @@ tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
 # --- Tab 1: 案件登記 ---
 with tab1:
-    st.title("📝 應安客服線上登記系統")
+    # --- 修改處：標題並列跑馬燈 ---
+    h_c1, h_c2 = st.columns([3, 1])
+    with h_c1:
+        st.title("📝 應安客服線上登記系統")
+    with h_c2:
+        weather_text = get_taipei_weather()
+        st.markdown(f"""
+            <div class="weather-marquee-box">
+                <marquee scrollamount="3" style="font-size: 18px; font-weight: 800; color: #000000;">
+                    {weather_text} 　　　 {weather_text}
+                </marquee>
+            </div>
+            """, unsafe_allow_html=True)
     
     with st.container():
         st.markdown("### 🏢 場站管理")
@@ -294,7 +336,7 @@ with tab2:
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # 6. 📈 每日案件量趨勢圖 (補回圖表)
+                    # 6. 📈 每日案件量趨勢圖
                     daily_counts = wk_df.groupby(wk_df[hdr[0]].dt.date).size().reset_index(name='件數')
                     daily_counts.columns = ['日期', '件數']
                     fig5 = px.line(daily_counts, x='日期', y='件數', text='件數', markers=True)
