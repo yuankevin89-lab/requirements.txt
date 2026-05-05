@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import re
 import io
-import requests  # 新增：用於獲取天氣資料
+import requests
 
 # --- 1. 頁面基本設定與專業樣式 ---
 st.set_page_config(page_title="應安客服雲端登記系統", page_icon="📝", layout="wide")
@@ -60,21 +60,32 @@ st.markdown("""
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
-# --- 新增：獲取台北即時天氣邏輯 ---
+# --- [優化] 獲取台北即時天氣邏輯 ---
 def get_taipei_weather():
     try:
-        # Open-Meteo API: 台北經緯度 25.03, 121.56
+        # Open-Meteo API (台北: 25.03, 121.56)
         url = "https://api.open-meteo.com/v1/forecast?latitude=25.03&longitude=121.56&current_weather=true"
         response = requests.get(url, timeout=5)
         data = response.json()
         temp = round(data['current_weather']['temperature'])
         code = data['current_weather']['weathercode']
-        # 天氣代碼轉換
-        weather_map = {0: "晴朗", 1: "晴間多雲", 2: "多雲", 3: "陰天", 45: "霧", 48: "霧", 51: "毛毛雨", 61: "小雨", 63: "中雨", 65: "大雨"}
-        desc = weather_map.get(code, "觀測中")
+        
+        # 完整的 WMO 天氣代碼轉換表
+        weather_map = {
+            0: "晴朗",
+            1: "晴間多雲", 2: "多雲", 3: "陰天",
+            45: "霧", 48: "霧",
+            51: "毛毛細雨", 53: "毛毛細雨", 55: "毛毛細雨",
+            61: "小雨", 63: "中雨", 65: "大雨",
+            71: "小雪", 73: "中雪", 75: "大雪",
+            77: "雪花",
+            80: "陣雨", 81: "強陣雨", 82: "極端陣雨",
+            95: "雷陣雨", 96: "雷雨伴隨冰雹", 99: "雷雨伴隨重度冰雹"
+        }
+        desc = weather_map.get(code, f"代碼:{code}") # 若無對應則顯示代碼以便除錯
         return f"🌡️ 台北：{temp}°C | {desc}"
-    except:
-        return "🌡️ 台北：取得天氣失敗"
+    except Exception as e:
+        return "🌡️ 台北：連線中..."
 
 # --- 2. 初始資料與連線 ---
 def init_connection():
@@ -97,7 +108,6 @@ if client:
         station_ws = main_spreadsheet.add_worksheet(title="Station_Settings", rows="100", cols="5")
         station_ws.append_row(["場站名稱"])
 
-    # 從雲端讀取場站清單
     cloud_stations = station_ws.col_values(1)[1:] 
     if not cloud_stations:
         STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "其他(未登入場站)"]
@@ -139,7 +149,6 @@ tab1, tab2 = st.tabs(["📝 案件登記", "📊 數據統計分析"])
 
 # --- Tab 1: 案件登記 ---
 with tab1:
-    # --- 修改處：標題並列跑馬燈 ---
     h_c1, h_c2 = st.columns([3, 1])
     with h_c1:
         st.title("📝 應安客服線上登記系統")
@@ -260,7 +269,6 @@ with tab2:
                 df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
                 df_s[hdr[0]] = pd.to_datetime(df_s[hdr[0]], errors='coerce')
                 df_s = df_s.dropna(subset=[hdr[0]])
-                
                 df_filtered = df_s[df_s[hdr[5]] != "其他"]
                 
                 c_range = st.date_input("📅 選擇統計週期", value=[])
@@ -311,19 +319,16 @@ with tab2:
                     st.divider()
                     g1, g2 = st.columns(2)
                     with g1:
-                        # 2. 📂 當前區間案件分佈
                         cat_c = wk_df[hdr[5]].value_counts().reset_index(); cat_c.columns=['類別','件數']
                         fig1 = px.bar(cat_c, x='類別', y='件數', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                         st.plotly_chart(apply_bold_style(fig1, "📂 當前區間案件分佈"), use_container_width=True, config=config_4k)
                     with g2:
-                        # 3. 🏢 場站排名 (Top 10)
                         st_counts = wk_df[hdr[1]].value_counts().reset_index()
                         st_counts.columns = ['場站', '件數']; top10_df = st_counts.head(10)
                         fig2 = px.bar(top10_df, x='場站', y='件數', text='件數', color='場站', color_discrete_sequence=px.colors.qualitative.Pastel)
                         st.plotly_chart(apply_bold_style(fig2, "🏢 場站排名 (Top 10)"), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # 4. 🔍 場站 vs. 異常類別分析
                     top10_names = top10_df['場站'].tolist()
                     cross = wk_df[wk_df[hdr[1]].isin(top10_names)].groupby([hdr[1], hdr[5]]).size().reset_index(name='件數')
                     cross.columns = ['場站', '異常類別', '件數']
@@ -331,12 +336,10 @@ with tab2:
                     st.plotly_chart(apply_bold_style(fig3, "🔍 場站 vs. 異常類別分析 (Top 10)", is_stacked=True), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # 5. 📈 類別精確統計
                     fig4 = px.bar(cat_c, y='類別', x='件數', orientation='h', text='件數', color='類別', color_discrete_map=CATEGORY_COLOR_MAP)
                     st.plotly_chart(apply_bold_style(fig4, "📈 類別精確統計", is_h=True), use_container_width=True, config=config_4k)
 
                     st.divider()
-                    # 6. 📈 每日案件量趨勢圖
                     daily_counts = wk_df.groupby(wk_df[hdr[0]].dt.date).size().reset_index(name='件數')
                     daily_counts.columns = ['日期', '件數']
                     fig5 = px.line(daily_counts, x='日期', y='件數', text='件數', markers=True)
