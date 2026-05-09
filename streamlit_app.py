@@ -61,11 +61,30 @@ st.markdown("""
 tw_timezone = pytz.timezone('Asia/Taipei')
 
 # --- [新功能] 特定場站後台網址字典 ---
-# 你可以在這裡自行增加場站名稱與對應的後台連結
 STATION_BACKENDS = {
-    "華視光復": "https://www.google.com", # 範例：點選華視光復會出現此連結
-    "一銀北港": "https://example.com/backend2",
+    "文湖場": "https://114.35.111.230/systemSetting/deviceManagement/deviceList",
+    "龍江場": "https://114.34.172.191/systemSetting/deviceManagement/deviceList",
+    "和平東路場": "https://114.32.2.144/systemSetting/deviceManagement/device",
+    "木柵路三段77巷場": "https://111.70.11.228/systemSetting/deviceManagement/device",
+    "大龍場": "https://218.161.19.23/systemSetting/deviceManagement/device",
+    "興岩社福大樓": "https://114.34.59.201/systemSetting/deviceManagement/device",
+    "木柵社宅": "https://220.135.37.120/systemSetting/deviceManagement/device",
+    "西園國宅": "https://1.34.190.66/systemSetting/deviceManagement/device",
+    "士林場": "https://114.32.150.245/systemSetting/deviceManagement/deviceList",
+    "大龍峒社宅": "https://211.21.156.151/systemSetting/deviceManagement/device",
+    "環山": "https://111.70.4.51/systemSetting/deviceManagement/deviceList",
+    "舊宗社宅": "https://220.135.96.128/systemSetting/deviceManagement/device",
+    "景平": "https://114.34.235.247/systemSetting/deviceManagement/device",
+    "青潭國小": "https://111.70.23.175/systemSetting/deviceManagement/deviceList",
+    "水源市場": "https://220.132.13.220/systemSetting/deviceManagement/deviceList",
+    "紅毛城": "https://118.163.137.193/systemSetting/deviceManagement/device"
 }
+
+# --- [優化] 快取資料讀取函式 ---
+@st.cache_data(ttl=600)  # 快取 10 分鐘，或手動重新整理
+def get_cloud_data(_sheet):
+    """從 Google Sheets 抓取所有原始資料並快取"""
+    return _sheet.get_all_values()
 
 # --- [優化] 獲取台北即時天氣邏輯 ---
 def get_taipei_weather():
@@ -98,7 +117,7 @@ def init_connection():
 
 client = init_connection()
 
-# --- 3. 核心邏輯：場站清單與新增場站功能 ---
+# --- 3. 核心邏輯：場站清單與快取管理 ---
 if client:
     main_spreadsheet = client.open("客服作業表")
     sheet = main_spreadsheet.sheet1
@@ -108,7 +127,12 @@ if client:
         station_ws = main_spreadsheet.add_worksheet(title="Station_Settings", rows="100", cols="5")
         station_ws.append_row(["場站名稱"])
 
-    cloud_stations = station_ws.col_values(1)[1:] 
+    # 這裡也對場站清單做簡單快取
+    @st.cache_data(ttl=3600)
+    def get_stations(_ws):
+        return _ws.col_values(1)[1:]
+
+    cloud_stations = get_stations(station_ws)
     if not cloud_stations:
         STATION_LIST = ["請選擇或輸入關鍵字搜尋", "華視光復", "其他(未登入場站)"]
     else:
@@ -128,7 +152,7 @@ CATEGORY_COLOR_MAP = {
     "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
     "無法找零": px.colors.qualitative.Safe[2],
     "網路異常": px.colors.qualitative.Safe[4],
-    "繳費問題相關": "#8DB600"  # 蘋果綠色
+    "繳費問題相關": "#8DB600"
 }
 
 def format_car_number(car_str):
@@ -164,13 +188,21 @@ with tab1:
     
     with st.container():
         st.markdown("### 🏢 場站管理")
-        c_new1, c_new2 = st.columns([4, 1])
-        new_st_name = c_new1.text_input("新增場站名稱 (若選單找不到請在此輸入)", placeholder="輸入名稱後點擊右側新增...")
+        c_new1, c_new2, c_refresh = st.columns([4, 1, 1.2])
+        new_st_name = c_new1.text_input("新增場站名稱", placeholder="輸入名稱後點擊右側新增...")
+        
         if c_new2.button("➕ 確認新增", use_container_width=True):
             if new_st_name.strip():
                 station_ws.append_row([new_st_name.strip()])
+                st.cache_data.clear() # 清除快取以顯示新場站
                 st.success(f"已成功新增場站：{new_st_name}")
                 st.rerun()
+        
+        # 新增手動刷新按鈕
+        if c_refresh.button("🔄 刷新雲端資料", use_container_width=True):
+            st.cache_data.clear()
+            st.toast("已同步最新雲端資料！")
+            st.rerun()
     
     st.divider()
     
@@ -178,16 +210,13 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
-    # --- 關鍵修正：將場站選擇移出表單，以實現「點選即出現按鈕」 ---
     d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
     
-    # 建立選單佈局
     col_st_1, col_st_2 = st.columns(2)
     with col_st_1:
-        station_name = st.selectbox("🏢 選擇場站名稱 (點選特定場站可觸發專屬後台按鈕)", options=STATION_LIST, 
+        station_name = st.selectbox("🏢 選擇場站名稱", options=STATION_LIST, 
                                      index=STATION_LIST.index(d[1]) if d[1] in STATION_LIST else 0)
 
-    # 進入案件填寫表單
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
         st.info(f"🕒 案件時間：{f_dt}")
@@ -207,13 +236,11 @@ with tab1:
             if d_cat == "繳費機異常" or d_cat == "繳費機故障": d_cat = "發票問題無法繳費"
             category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 7)
         with c4: 
-            car_num = st.text_input("車號", value=d[4], help="自動標準化格式")
+            car_num = st.text_input("車號", value=d[4])
             description = st.text_area("描述內容", value=d[6], height=110)
 
-        # --- 按鈕區列數微調 ---
-        # 增加一格 col 用於放置「專屬後台」按鈕
-        btn_c1, btn_c2, btn_c3, btn_c4, _ = st.columns([1, 1, 1, 1.5, 2])
-        
+        # 按鈕佈局
+        btn_c1, btn_c2, btn_c3, btn_c4, _ = st.columns([1, 1, 1, 1.8, 1.2])
         submit_btn = btn_c1.form_submit_button("確認送出" if not st.session_state.edit_mode else "更新紀錄")
         
         if st.session_state.edit_mode:
@@ -226,7 +253,7 @@ with tab1:
         
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
 
-        # 🌟 核心邏輯：判斷目前場站是否在專屬後台清單中
+        # --- 專屬後台按鈕觸發邏輯 ---
         if station_name in STATION_BACKENDS:
             btn_c4.link_button(f"🔗 {station_name}後台", STATION_BACKENDS[station_name])
 
@@ -237,22 +264,28 @@ with tab1:
                 if st.session_state.edit_mode:
                     sheet.update(f"A{st.session_state.edit_row_idx}:H{st.session_state.edit_row_idx}", [row])
                     st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""] * 8
-                else: sheet.append_row(row)
+                else: 
+                    sheet.append_row(row)
+                
+                st.cache_data.clear() # 提交後清除快取，確保列表更新
                 st.session_state.form_id += 1 
                 st.rerun()
             else: st.error("請正確選擇填單人與場站")
 
-    # --- 最近紀錄 ---
+    # --- 最近紀錄 (使用快取優化) ---
     st.markdown("---")
     st.subheader("🔍 最近紀錄 (交班動態)")
     if sheet:
-        all_raw = sheet.get_all_values()
+        # 改用快取函式讀取資料
+        all_raw = get_cloud_data(sheet)
         if len(all_raw) > 1:
             valid_rows = [(i+2, r) for i, r in enumerate(all_raw[1:]) if any(str(c).strip() for c in r)]
             search_q = st.text_input("🔍 搜尋歷史紀錄 (全欄位)", placeholder="輸入關鍵字...").strip().lower()
             eight_hrs_ago = (now_ts.replace(tzinfo=None)) - datetime.timedelta(hours=8)
             display_list = []
-            if search_q: display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
+            
+            if search_q: 
+                display_list = [(idx, r) for idx, r in valid_rows if any(search_q in str(cell).lower() for cell in r)]
             else:
                 for idx, r in valid_rows:
                     try:
@@ -286,7 +319,7 @@ with tab2:
     st.title("📊 數據統計與分析")
     if st.text_input("管理員密碼", type="password", key="stat_pwd") == "kevin198":
         if sheet:
-            raw_stat = [r for r in sheet.get_all_values() if any(f.strip() for f in r)]
+            raw_stat = get_cloud_data(sheet)
             if len(raw_stat) > 1:
                 hdr = raw_stat[0]
                 df_s = pd.DataFrame(raw_stat[1:], columns=hdr)
