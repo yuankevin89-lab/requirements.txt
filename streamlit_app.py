@@ -60,26 +60,26 @@ st.markdown("""
 
 tw_timezone = pytz.timezone('Asia/Taipei')
 
+# --- [新功能] 特定場站後台網址字典 ---
+# 你可以在這裡自行增加場站名稱與對應的後台連結
+STATION_BACKENDS = {
+    "華視光復": "https://www.google.com", # 範例：點選華視光復會出現此連結
+    "一銀北港": "https://example.com/backend2",
+}
+
 # --- [優化] 獲取台北即時天氣邏輯 ---
 def get_taipei_weather():
     try:
-        # Open-Meteo API (台北: 25.03, 121.56)
         url = "https://api.open-meteo.com/v1/forecast?latitude=25.03&longitude=121.56&current_weather=true"
         response = requests.get(url, timeout=5)
         data = response.json()
         temp = round(data['current_weather']['temperature'])
         code = data['current_weather']['weathercode']
-        
-        # 完整的 WMO 天氣代碼轉換表
         weather_map = {
-            0: "晴朗",
-            1: "晴間多雲", 2: "多雲", 3: "陰天",
-            45: "霧", 48: "霧",
-            51: "毛毛細雨", 53: "毛毛細雨", 55: "毛毛細雨",
-            61: "小雨", 63: "中雨", 65: "大雨",
-            71: "小雪", 73: "中雪", 75: "大雪",
-            77: "雪花",
-            80: "陣雨", 81: "強陣雨", 82: "極端陣雨",
+            0: "晴朗", 1: "晴間多雲", 2: "多雲", 3: "陰天",
+            45: "霧", 48: "霧", 51: "毛毛細雨", 53: "毛毛細雨", 55: "毛毛細雨",
+            61: "小雨", 63: "中雨", 65: "大雨", 71: "小雪", 73: "中雪", 75: "大雪",
+            77: "雪花", 80: "陣雨", 81: "強陣雨", 82: "極端陣雨",
             95: "雷陣雨", 96: "雷雨伴隨冰雹", 99: "雷雨伴隨重度冰雹"
         }
         desc = weather_map.get(code, f"代碼:{code}") 
@@ -121,7 +121,6 @@ STAFF_LIST = ["請選擇填單人", "宗哲", "美妞", "政宏", "文輝", "恩
 CATEGORY_LIST = ["發票問題無法繳費", "網路問題無法繳費", "發票缺紙或卡紙", "無法找零", "身障優惠折抵", "網路異常", "繳費問題相關", "其他"]
 STAT_CATEGORY_LIST = [c for c in CATEGORY_LIST if c != "其他"]
 
-# [更新] 繳費相關問題顏色改為蘋果綠 (#8DB600)
 CATEGORY_COLOR_MAP = {
     "身障優惠折抵": "blue",
     "發票問題無法繳費": "green",
@@ -129,7 +128,7 @@ CATEGORY_COLOR_MAP = {
     "發票缺紙或卡紙": px.colors.qualitative.Safe[1],
     "無法找零": px.colors.qualitative.Safe[2],
     "網路異常": px.colors.qualitative.Safe[4],
-    "繳費問題相關": "#8DB600"
+    "繳費問題相關": "#8DB600"  # 蘋果綠色
 }
 
 def format_car_number(car_str):
@@ -179,25 +178,42 @@ with tab1:
     if st.session_state.edit_mode:
         st.warning(f"⚠️ 【編輯模式】- 正在更新第 {st.session_state.edit_row_idx} 列紀錄")
 
+    # --- 關鍵修正：將場站選擇移出表單，以實現「點選即出現按鈕」 ---
+    d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
+    
+    # 建立選單佈局
+    col_st_1, col_st_2 = st.columns(2)
+    with col_st_1:
+        station_name = st.selectbox("🏢 選擇場站名稱 (點選特定場站可觸發專屬後台按鈕)", options=STATION_LIST, 
+                                     index=STATION_LIST.index(d[1]) if d[1] in STATION_LIST else 0)
+
+    # 進入案件填寫表單
     with st.form(key=f"my_form_{st.session_state.form_id}", clear_on_submit=False):
-        d = st.session_state.edit_data if st.session_state.edit_mode else [""]*8
         f_dt = d[0] if st.session_state.edit_mode else now_ts.strftime("%Y-%m-%d %H:%M")
         st.info(f"🕒 案件時間：{f_dt}")
+        
         c1, c2 = st.columns(2)
         with c1:
-            station_name = st.selectbox("場站名稱", options=STATION_LIST, index=STATION_LIST.index(d[1]) if d[1] in STATION_LIST else 0)
             caller_name = st.text_input("姓名", value=d[2])
         with c2:
-            user_name = st.selectbox("填單人", options=STAFF_LIST, index=STAFF_LIST.index(d[7]) if d[7] in STAFF_LIST else 0, disabled=st.session_state.edit_mode)
-            caller_phone = st.text_input("電話", value=d[3])
+            user_name = st.selectbox("填單人", options=STAFF_LIST, 
+                                     index=STAFF_LIST.index(d[7]) if d[7] in STAFF_LIST else 0, 
+                                     disabled=st.session_state.edit_mode)
+        
         c3, c4 = st.columns(2)
         with c3:
+            caller_phone = st.text_input("電話", value=d[3])
             d_cat = d[5]
             if d_cat == "繳費機異常" or d_cat == "繳費機故障": d_cat = "發票問題無法繳費"
             category = st.selectbox("類別", options=CATEGORY_LIST, index=CATEGORY_LIST.index(d_cat) if d_cat in CATEGORY_LIST else 7)
-        with c4: car_num = st.text_input("車號", value=d[4], help="自動標準化格式")
-        description = st.text_area("描述內容", value=d[6])
-        btn_c1, btn_c2, btn_c3, _ = st.columns([1, 1, 1, 3])
+        with c4: 
+            car_num = st.text_input("車號", value=d[4], help="自動標準化格式")
+            description = st.text_area("描述內容", value=d[6], height=110)
+
+        # --- 按鈕區列數微調 ---
+        # 增加一格 col 用於放置「專屬後台」按鈕
+        btn_c1, btn_c2, btn_c3, btn_c4, _ = st.columns([1, 1, 1, 1.5, 2])
+        
         submit_btn = btn_c1.form_submit_button("確認送出" if not st.session_state.edit_mode else "更新紀錄")
         
         if st.session_state.edit_mode:
@@ -205,8 +221,14 @@ with tab1:
                 st.session_state.edit_mode, st.session_state.edit_row_idx, st.session_state.edit_data = False, None, [""] * 8
                 st.session_state.form_id += 1
                 st.rerun()
-        else: btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
+        else: 
+            btn_c2.link_button("多元支付", "http://219.85.163.90:5010/")
+        
         btn_c3.link_button("簡訊系統", "https://umc.fetnet.net/#/menu/login")
+
+        # 🌟 核心邏輯：判斷目前場站是否在專屬後台清單中
+        if station_name in STATION_BACKENDS:
+            btn_c4.link_button(f"🔗 {station_name}後台", STATION_BACKENDS[station_name])
 
         if submit_btn:
             if user_name != "請選擇填單人" and station_name != "請選擇或輸入關鍵字搜尋":
